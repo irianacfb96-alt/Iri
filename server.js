@@ -26,29 +26,24 @@ app.post('/api/groq', async (req, res) => {
   }
 });
 
-// Genera imagen: busca en Lexica.art (AI, gratis, instantáneo), fallback Picsum
+// Genera imagen: busca en loremflickr (fotos reales por keyword), fallback Picsum
 app.get('/api/img', async (req, res) => {
-  const prompt = req.query.p || 'abstract colorful background';
+  const prompt = req.query.p || 'business professional';
   const seed = parseInt(req.query.s || '1');
+  const lock = (Math.abs(seed) % 9999) + 1;
+  // loremflickr: free Flickr keyword search, real photos, no API key
   try {
-    // Lexica.art: millones de imágenes AI pre-generadas por tema
-    const search = await fetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(prompt)}`, {
-      headers: { 'User-Agent': 'StoryFlow/1.0' }
-    });
-    const data = await search.json();
-    if (data.images && data.images.length > 0) {
-      const pick = data.images[seed % data.images.length];
-      const imgUrl = pick.src || pick.srcSmall;
-      const imgRes = await fetch(imgUrl);
-      if (imgRes.ok) {
-        const buffer = await imgRes.arrayBuffer();
-        res.set('Content-Type', imgRes.headers.get('content-type') || 'image/jpeg');
-        res.set('Cache-Control', 'public, max-age=86400');
-        return res.send(Buffer.from(buffer));
-      }
+    const keywords = prompt.replace(/\s+/g, ',').substring(0, 80);
+    const flickrUrl = `https://loremflickr.com/540/960/${encodeURIComponent(keywords)}?lock=${lock}`;
+    const imgRes = await fetch(flickrUrl, { redirect: 'follow' });
+    if (imgRes.ok && imgRes.headers.get('content-type')?.startsWith('image/')) {
+      const buffer = await imgRes.arrayBuffer();
+      res.set('Content-Type', imgRes.headers.get('content-type') || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(Buffer.from(buffer));
     }
   } catch (e) {
-    console.error('Lexica error:', e.message);
+    console.error('loremflickr error:', e.message);
   }
   // Fallback: foto aleatoria de Picsum (instantánea)
   try {
