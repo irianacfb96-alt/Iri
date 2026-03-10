@@ -657,9 +657,24 @@ async function generateAllImages(){
   toast('success',`✅ ${all.length} imágenes listas`);
 }
 
+const CLIENT_IMG_KEYWORDS={
+  pizza:'italian pizza restaurant food delicious',
+  doctor:'neurosurgeon medical brain surgery professional',
+  globos:'colorful balloons party decoration celebration',
+  imacorp:'corporate uniforms business branding professional',
+  crediya:'motorcycle action sport financing',
+  casa:'pizza chef kitchen tools professional',
+  alberto:'business leader entrepreneur CEO suit'
+};
+
 function getImageUrl(prompt,seed=1){
-  const p=encodeURIComponent((prompt||'abstract colorful background').trim());
-  return `${PROXY_URL}/api/img?p=${p}&s=${seed}`;
+  let p=prompt;
+  // Si no hay prompt en inglés (calendario viejo o genérico), usar keywords del cliente
+  if(!p||p.length<8||/imagen|foto|video|meme|slider|encuesta|pregunta|divertida|texto/i.test(p)){
+    const clientId=calendar?.client?.id||'';
+    p=CLIENT_IMG_KEYWORDS[clientId]||'professional photography colorful';
+  }
+  return `${PROXY_URL}/api/img?p=${encodeURIComponent(p.trim())}&s=${seed}`;
 }
 
 function regenImage(di,si){
