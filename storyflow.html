@@ -457,7 +457,6 @@ function renderCalendar(){
       <div style="display:flex;gap:8px">
         <button class="btn-sm btn-outline" onclick="saveCalendarSlot()">💾 Guardar</button>
         <button class="btn-sm btn-outline" onclick="approveAll()">✓ Aprobar todo</button>
-        <button class="btn-sm btn-purple" id="btnGenImgs" onclick="generateAllImages()">🎨 Generar imágenes</button>
         <button class="btn-sm btn-purple" onclick="goToPage('review')">👁 Revisar ${approved.size>0?`(${approved.size}/${total})`:''}</button>
       </div>
     </div>
@@ -472,14 +471,15 @@ function renderCalendar(){
           <div class="day-stories">
             ${day.stories.map((s,si)=>{
               const id=`${di}-${s.num}`,t=ts(s.type);
-              const thumb=s._imgLoaded?`<img src="${getImageUrl(s.image_prompt||s.visual,s._seed||1)}" style="width:100%;height:100%;object-fit:cover;display:block">`:makePlaceholderHTML(s,calendar.client);
+              const hasImg=s._imgLoaded&&s._imgUrl;
+              const thumb=hasImg?`<img src="${s._imgUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:makePlaceholderHTML(s,calendar.client);
               return `<div class="story-card ${approved.has(id)?'approved':''}" id="sc-${id}" onclick="openPanel(${di},${si})">
                 <span class="story-check">✓</span>
                 <div class="story-img-wrap" id="iw-${id}">
                   ${thumb}
                 </div>
                 <div class="story-img-actions">
-                  ${needsImage(s.type)?`<button class="img-btn" onclick="event.stopPropagation();loadOneImage(${di},${si})">🎨 IA</button>`:'<span class="img-btn" style="opacity:0.3;cursor:default">🎬 Video</span>'}
+                  <span class="img-btn" style="opacity:0.5;cursor:default;font-size:8px">${hasImg?'📸':'🎨'}</span>
                   <button class="img-btn" onclick="event.stopPropagation();openDesign(${di},${si})" style="background:rgba(124,58,237,0.2);border-color:#7C3AED;color:#a78bfa">✏️</button>
                 </div>
                 <div class="story-num">S${s.num} · ${s.role}</div>
@@ -608,16 +608,19 @@ function openPanel(di,si){
   panelData={di,si};
   document.getElementById('panelTitle').textContent=`${calendar.days[di].day} · Story ${story.num}`;
   const t=ts(story.type);
-  const aiUrl=getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1);
-  const panelImgContent=story._imgLoaded?`<img src="${aiUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:makePlaceholderHTML(story,calendar.client);
+  const hasImg=story._imgLoaded&&story._imgUrl;
+  const panelImgContent=hasImg?`<img src="${story._imgUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:makePlaceholderHTML(story,calendar.client);
   document.getElementById('panelBody').innerHTML=`
     <div class="panel-img-wrap" id="panel-img-wrap">
       ${panelImgContent}
     </div>
     <div class="panel-img-actions">
-      <button class="btn-sm btn-outline" style="flex:1" onclick="regenImagePanel()">🎨 IA</button>
-      <button class="btn-sm btn-orange" style="flex:1" onclick="downloadImg(${di},${si})">⬇ Descargar</button>
-      <button class="btn-sm btn-outline" style="flex:1" onclick="openImgPanel(${di},${si})">🔍 Ver</button>
+      ${hasImg
+        ?`<button class="btn-sm btn-outline" style="flex:1" onclick="regenImagePanel()">🔄 Cambiar foto</button>
+           <button class="btn-sm btn-orange" style="flex:1" onclick="downloadImg(${di},${si})">⬇ Descargar</button>
+           <button class="btn-sm btn-outline" style="color:#FF4757;border-color:#FF4757" onclick="clearImg(${di},${si})">🗑</button>`
+        :`<button class="btn-sm btn-purple" style="flex:1" onclick="regenImagePanel()">📸 Generar foto con IA</button>`
+      }
     </div>
     <div class="panel-section">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px">
@@ -673,33 +676,37 @@ function makePlaceholderHTML(story, client){
 
 async function loadOneImage(di,si){
   const story=calendar.days[di].stories[si];
-  const id=`${di}-${story.num}`;
-  const wrap=document.getElementById('iw-'+id);
-  if(!wrap)return;
-  wrap.innerHTML=`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div style="width:18px;height:18px;border:2px solid rgba(255,255,255,0.2);border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite"></div></div>`;
-  const url=getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1);
+  if(!story._seed) story._seed=Date.now()+di*100+si;
+  const url=getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed);
   return new Promise(resolve=>{
     const img=new Image();
     const timer=setTimeout(()=>{
       img.src='';
-      wrap.innerHTML=makePlaceholderHTML(story,calendar.client);
-      toast('info','⏱ Imagen IA tardó mucho, intenta de nuevo');
-      resolve();
+      toast('info','⏱ Foto tardó mucho, intenta de nuevo');
+      resolve(null);
     },18000);
     img.onload=()=>{
       clearTimeout(timer);
       story._imgLoaded=true;
+      story._imgUrl=url;
       saveState();
-      wrap.innerHTML=`<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`;
-      resolve();
+      // Actualizar miniatura en el calendario si está visible
+      const cardWrap=document.getElementById('iw-'+di+'-'+story.num);
+      if(cardWrap) cardWrap.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;display:block">`;
+      resolve(url);
     };
-    img.onerror=()=>{
-      clearTimeout(timer);
-      wrap.innerHTML=makePlaceholderHTML(story,calendar.client);
-      resolve();
-    };
+    img.onerror=()=>{ clearTimeout(timer); resolve(null); };
     img.src=url;
   });
+}
+
+function clearImg(di,si){
+  const story=calendar.days[di].stories[si];
+  story._imgLoaded=false;
+  story._imgUrl=null;
+  story._seed=Date.now()+di*100+si;
+  saveState();
+  openPanel(di,si);
 }
 
 async function loadOneImageAndRefresh(di,si){
