@@ -410,9 +410,16 @@ IDIOMA: Español venezolano/coloquial, cercano, natural
 ESTRUCTURA: S1:Gancho | S2:Desarrollo | S3:Producto | S4:Beneficio | S5:Interacción | S6:CTA
 TIPOS: foto, video, encuesta, pregunta, slider, meme, detrás de cámara
 Varía los tipos cada día. Usa encuestas y preguntas al menos 2 veces por semana.
-Para cada historia incluye image_prompt: descripción en INGLÉS para generar imagen IG (max 12 palabras, sin texto en la imagen, estilo fotorrealista, relacionado al negocio).
+Para cada historia incluye image_keywords: exactamente 2-3 palabras en inglés separadas por coma, específicas al contenido de ESA historia, para buscar foto en stock. Ejemplos reales:
+- historia de uniformes corporativos → "corporate,uniform,shirt"
+- historia de bolsas ecológicas → "eco,bag,reusable"
+- historia de motocicletas → "motorcycle,road,speed"
+- historia de pizza → "pizza,restaurant,food"
+- historia de médico → "doctor,hospital,medical"
+- historia de globos → "balloon,party,decoration"
+NO uses palabras genéricas como "professional,business,brand". USA palabras que describan el OBJETO o ESCENA específica de la historia.
 Responde SOLO JSON válido sin texto extra ni backticks:
-{"days":[{"day":"Lunes","theme":"tema corto","stories":[{"num":1,"role":"Gancho","type":"video","text":"texto máx 15 palabras","visual":"qué mostrar","goal":"objetivo breve","image_prompt":"photorealistic image description in english max 12 words"}]}]}`;
+{"days":[{"day":"Lunes","theme":"tema corto","stories":[{"num":1,"role":"Gancho","type":"video","text":"texto máx 15 palabras","visual":"qué mostrar","goal":"objetivo breve","image_keywords":"keyword1,keyword2,keyword3"}]}]}`;
 
   try{
     const res=await fetch(PROXY_URL+"/api/groq",{
@@ -517,7 +524,7 @@ function renderReview(){
         ${day.stories.map((story,si)=>{
           const id=`${di}-${story.num}`,t=ts(story.type);
           const [rc1,rc2]=(calendar.client.colors)||['#1C1C27','#2A2A3A'];
-          const revThumb=story._imgLoaded?`<img class="review-img" src="${getImageUrl(story.image_prompt||story.visual,story._seed||1)}" style="cursor:zoom-in;object-fit:cover" onclick="openImg('${getImageUrl(story.image_prompt||story.visual,story._seed||1).replace(/'/g,"\\'")}')">`:
+          const revThumb=story._imgLoaded?`<img class="review-img" src="${getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1)}" style="cursor:zoom-in;object-fit:cover" onclick="openImg('${getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1).replace(/'/g,"\\'")}')">`:
             `<div class="review-img" style="background:linear-gradient(135deg,${rc1},${rc2});display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer" onclick="loadOneImageAndRefresh(${di},${si})">
               <span style="font-size:18px">${calendar.client.emoji}</span>
               <span style="font-size:7px;color:rgba(255,255,255,0.6);font-weight:700">TAP IA</span>
@@ -598,7 +605,7 @@ function openPanel(di,si){
   panelData={di,si};
   document.getElementById('panelTitle').textContent=`${calendar.days[di].day} · Story ${story.num}`;
   const t=ts(story.type);
-  const aiUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+  const aiUrl=getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1);
   const panelImgContent=story._imgLoaded?`<img src="${aiUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:makePlaceholderHTML(story,calendar.client);
   document.getElementById('panelBody').innerHTML=`
     <div class="panel-img-wrap" id="panel-img-wrap">
@@ -667,7 +674,7 @@ async function loadOneImage(di,si){
   const wrap=document.getElementById('iw-'+id);
   if(!wrap)return;
   wrap.innerHTML=`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div style="width:18px;height:18px;border:2px solid rgba(255,255,255,0.2);border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite"></div></div>`;
-  const url=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+  const url=getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1);
   return new Promise(resolve=>{
     const img=new Image();
     const timer=setTimeout(()=>{
@@ -732,18 +739,15 @@ const CLIENT_IMG_KEYWORDS={
 
 function getImageUrl(prompt,seed=1){
   const clientId=calendar?.client?.id||'';
-  let p=prompt;
-  // Si el prompt es genérico/vacío/en español, usar keywords del cliente
-  if(!p||p.length<8||/imagen|foto|video|meme|slider|encuesta|pregunta|divertida|texto|uniforme|rotul|empresa|servicio|product/i.test(p)){
+  let p=prompt||'';
+  // Si hay keywords cortas en inglés (formato "word,word,word") usarlas directo
+  const isKeywords=/^[a-zA-Z,]+$/.test(p.trim())&&p.includes(',')&&p.length<50;
+  if(!isKeywords){
+    // Texto largo o en español: usar keywords del cliente
     p=CLIENT_IMG_KEYWORDS[clientId]||'professional business';
   }
-  // loremflickr funciona mejor con keywords cortas en inglés separadas por coma
-  // Si viene texto largo en español, forzar keywords del cliente
-  if(/[áéíóúñ¿¡]/i.test(p)||p.split(' ').length>5){
-    p=CLIENT_IMG_KEYWORDS[clientId]||'professional business';
-  }
-  // Máximo 3 palabras separadas por coma (formato loremflickr)
-  const clean=p.replace(/\s+/g,',').split(',').filter(Boolean).slice(0,3).join(',');
+  // Limpiar y limitar a 3 keywords máximo
+  const clean=p.replace(/\s+/g,'').split(',').filter(Boolean).slice(0,3).join(',');
   return `${PROXY_URL}/api/img?p=${encodeURIComponent(clean)}&s=${seed}`;
 }
 
@@ -767,7 +771,7 @@ async function regenImagePanel(){
   const wrap=document.getElementById('panel-img-wrap');
   if(wrap)wrap.innerHTML=`<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><div style="width:28px;height:28px;border:3px solid rgba(255,255,255,0.15);border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite"></div><div style="font-size:11px;color:#6B6B80">Generando imagen IA...</div></div>`;
   toast('info','🎨 Generando imagen IA...');
-  const url=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+  const url=getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1);
   await new Promise(resolve=>{
     const img=new Image();
     const timer=setTimeout(()=>{img.src='';if(wrap)wrap.innerHTML=makePlaceholderHTML(story,calendar.client);toast('error','⏱ Tiempo agotado');resolve();},25000);
@@ -779,7 +783,7 @@ async function regenImagePanel(){
 
 async function downloadImg(di,si){
   const story=calendar.days[di].stories[si];
-  const url=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+  const url=getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1);
   const fname=`${calendar.client.id}_s${story.num}_dia${di+1}.jpg`;
   toast('info','⬇ Descargando...');
   try{
@@ -808,7 +812,7 @@ function openImg(url){
 function openImgPanel(di,si){
   const story=calendar.days[di].stories[si];
   if(story._imgLoaded){
-    openImg(getImageUrl(story.image_prompt||story.visual,story._seed||1));
+    openImg(getImageUrl(story.image_keywords||story.image_prompt||story.visual,story._seed||1));
   }else{
     toast('info','Genera la imagen IA primero');
   }
