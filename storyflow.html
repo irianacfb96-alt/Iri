@@ -368,7 +368,7 @@ function renderCalendar(){
                 <span class="story-check">✓</span>
                 <div class="story-img-wrap" id="iw-${id}">
                   <div class="img-placeholder img-loading" id="il-${id}"></div>
-                  <img src="${imgUrl}" alt="" style="opacity:0" onload="this.style.opacity=1;document.getElementById('il-${id}').style.display='none'" onerror="document.getElementById('il-${id}').innerHTML='🖼️';document.getElementById('il-${id}').style.opacity=0.3">
+                  <img data-src="${imgUrl}" alt="" style="opacity:0" class="lazy-img" onload="this.style.opacity=1;document.getElementById('il-${id}').style.display='none'" onerror="document.getElementById('il-${id}').innerHTML='🖼️';document.getElementById('il-${id}').style.opacity=0.3">
                 </div>
                 <div class="story-img-actions">
                   <button class="img-btn" onclick="event.stopPropagation();regenImage(${di},${si})">↺ Regen</button>
@@ -382,6 +382,7 @@ function renderCalendar(){
           </div>
         </div>`).join('')}
     </div>`;
+  setTimeout(initLazyImages,50);
 }
 
 function approveAll(){
@@ -493,7 +494,7 @@ function openPanel(di,si){
   panelData={di,si};
   document.getElementById('panelTitle').textContent=`${calendar.days[di].day} · Story ${story.num}`;
   const t=ts(story.type);
-  const imgUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+  const imgUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1,true);
   document.getElementById('panelBody').innerHTML=`
     <div class="panel-img-wrap" id="panel-img-wrap">
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center" id="panel-img-loading"><div class="img-loading" style="width:24px;height:24px;border:3px solid #2A2A3A;border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite"></div></div>
@@ -543,9 +544,23 @@ function saveEdit(){
   toast('success','💾 Guardado');closePanel();renderCalendar();
 }
 
-function getImageUrl(prompt,seed=1){
+function initLazyImages(){
+  const obs=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        const img=e.target;
+        if(img.dataset.src){img.src=img.dataset.src;delete img.dataset.src;}
+        obs.unobserve(img);
+      }
+    });
+  },{rootMargin:'100px'});
+  document.querySelectorAll('img.lazy-img').forEach(img=>obs.observe(img));
+}
+
+function getImageUrl(prompt,seed=1,full=false){
   const p=encodeURIComponent((prompt||'abstract colorful background').trim());
-  return `https://image.pollinations.ai/prompt/${p}?width=1080&height=1920&nologo=true&seed=${seed}&model=flux`;
+  const w=full?1080:540,h=full?1920:960;
+  return `https://image.pollinations.ai/prompt/${p}?width=${w}&height=${h}&nologo=true&seed=${seed}&model=turbo`;
 }
 
 function regenImage(di,si){
