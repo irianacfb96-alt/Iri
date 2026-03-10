@@ -115,6 +115,20 @@ body{font-family:system-ui,sans-serif;background:#0A0A0F;color:#F0F0F5;min-heigh
 .saved-card.active-cal{border-color:#06D6A0}
 .saved-name{font-weight:700;font-size:13px;flex:1}
 .saved-meta{font-size:11px;color:#6B6B80}
+#design-modal{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:400;display:none;align-items:center;justify-content:center;padding:16px}
+.design-wrap{background:#13131A;border:1px solid #2A2A3A;border-radius:16px;display:flex;gap:0;overflow:hidden;max-height:95vh;width:100%;max-width:860px}
+.design-preview{background:#0A0A0F;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0}
+.design-controls{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:260px}
+.design-canvas{border-radius:8px;cursor:pointer}
+.upload-zone{border:2px dashed #2A2A3A;border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:border-color 0.2s;background:#0A0A0F}
+.upload-zone:hover{border-color:#FF6B35}
+.upload-zone input{display:none}
+.template-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tmpl-btn{padding:7px;border-radius:7px;border:1px solid #2A2A3A;background:#1C1C27;color:#F0F0F5;font-size:10px;font-weight:700;cursor:pointer;transition:all 0.15s;text-align:center}
+.tmpl-btn.active{border-color:#FF6B35;background:rgba(255,107,53,0.15);color:#FF6B35}
+.design-field{margin-bottom:10px}
+.design-field label{display:block;font-size:10px;font-weight:700;color:#6B6B80;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.design-field textarea,.design-field input{width:100%;background:#1C1C27;border:1px solid #2A2A3A;border-radius:8px;color:#F0F0F5;font-size:12px;padding:8px 10px;outline:none;font-family:system-ui;resize:vertical}
 </style>
 </head>
 <body>
@@ -211,6 +225,54 @@ body{font-family:system-ui,sans-serif;background:#0A0A0F;color:#F0F0F5;min-heigh
     <div style="display:flex;gap:9px;margin-top:6px">
       <button onclick="saveModal()" style="flex:1;padding:9px;border-radius:9px;border:none;background:#FF6B35;color:white;font-weight:800;font-size:13px;cursor:pointer">💾 Guardar</button>
       <button onclick="document.getElementById('modal-overlay').style.display='none'" style="padding:9px 18px;border-radius:9px;border:1px solid #2A2A3A;background:transparent;color:#F0F0F5;font-weight:700;font-size:13px;cursor:pointer">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="design-modal">
+  <div class="design-wrap">
+    <div class="design-preview">
+      <canvas id="design-canvas" class="design-canvas" width="270" height="480"></canvas>
+      <div style="display:flex;gap:7px;width:100%">
+        <button onclick="renderTemplate()" style="flex:1;padding:8px;border-radius:8px;border:none;background:#7C3AED;color:white;font-weight:800;font-size:12px;cursor:pointer">↺ Actualizar</button>
+        <button onclick="downloadTemplate()" style="flex:1;padding:8px;border-radius:8px;border:none;background:#FF6B35;color:white;font-weight:800;font-size:12px;cursor:pointer">⬇ Descargar</button>
+      </div>
+    </div>
+    <div class="design-controls">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div style="font-weight:800;font-size:14px;flex:1">🎨 Diseñar Historia</div>
+        <button onclick="closeDesign()" style="width:28px;height:28px;border-radius:7px;border:1px solid #2A2A3A;background:transparent;color:#6B6B80;cursor:pointer">✕</button>
+      </div>
+      <div class="design-field">
+        <label>Foto del producto (PNG recomendado)</label>
+        <div class="upload-zone" onclick="document.getElementById('photo-upload').click()">
+          <input type="file" id="photo-upload" accept="image/*" onchange="handlePhotoUpload(event)">
+          <div id="upload-label" style="font-size:12px;color:#6B6B80">📸 Click para subir foto del producto<br><span style="font-size:10px">PNG con fondo transparente ideal</span></div>
+        </div>
+      </div>
+      <div class="design-field">
+        <label>Titular (headline)</label>
+        <textarea id="design-headline" rows="2" oninput="renderTemplate()"></textarea>
+      </div>
+      <div class="design-field">
+        <label>CTA (botón inferior)</label>
+        <input type="text" id="design-cta" oninput="renderTemplate()">
+      </div>
+      <div class="design-field" id="phone-field" style="display:none">
+        <label>Telefono / contacto (pie de diseño)</label>
+        <input type="text" id="design-phone" oninput="renderTemplate()" placeholder="0412-000.00.00">
+      </div>
+      <div class="design-field">
+        <label>Estilo / Template</label>
+        <div class="template-grid" id="template-grid"></div>
+      </div>
+      <div class="design-field">
+        <label>Logo del cliente (opcional)</label>
+        <div class="upload-zone" onclick="document.getElementById('logo-upload').click()" style="padding:12px">
+          <input type="file" id="logo-upload" accept="image/*" onchange="handleLogoUpload(event)">
+          <div id="logo-upload-label" style="font-size:11px;color:#6B6B80">🏷️ Subir logo PNG</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -408,7 +470,7 @@ function renderCalendar(){
                 </div>
                 <div class="story-img-actions">
                   ${needsImage(s.type)?`<button class="img-btn" onclick="event.stopPropagation();loadOneImage(${di},${si})">🎨 IA</button>`:'<span class="img-btn" style="opacity:0.3;cursor:default">🎬 Video</span>'}
-                  <button class="img-btn" onclick="event.stopPropagation();downloadImg(${di},${si})">⬇</button>
+                  <button class="img-btn" onclick="event.stopPropagation();openDesign(${di},${si})" style="background:rgba(124,58,237,0.2);border-color:#7C3AED;color:#a78bfa">✏️</button>
                 </div>
                 <div class="story-num">S${s.num} · ${s.role}</div>
                 <span class="story-tag" style="background:${t.bg};color:${t.color}">${s.type}</span>
@@ -564,6 +626,7 @@ function openPanel(di,si){
   const id=`${di}-${story.num}`,isApproved=approved.has(id);
   document.getElementById('panelFooter').innerHTML=`
     <button onclick="toggleApprovePanel('${id}')" style="flex:1;padding:8px;border-radius:8px;border:${isApproved?'1px solid #2A2A3A':'none'};background:${isApproved?'transparent':'#06D6A0'};color:${isApproved?'#F0F0F5':'#000'};font-weight:800;font-size:12px;cursor:pointer">${isApproved?'↩ Desaprobar':'✓ Aprobar'}</button>
+    <button onclick="openDesign(panelData.di,panelData.si)" style="padding:8px 14px;border-radius:8px;border:none;background:#7C3AED;color:white;font-weight:800;font-size:12px;cursor:pointer">✏️ Diseñar</button>
     <button onclick="saveEdit()" style="padding:8px 14px;border-radius:8px;border:1px solid #2A2A3A;background:transparent;color:#F0F0F5;font-weight:800;font-size:12px;cursor:pointer">💾 Guardar</button>`;
   document.getElementById('overlay').style.display='block';
   document.getElementById('panel').style.display='flex';
@@ -805,6 +868,432 @@ function renderSaved(){
       ${s.key===currentKey?'<span style="color:#06D6A0;font-size:11px;font-weight:700">Activo</span>':''}
       <button onclick="event.stopPropagation();deleteCalendarSlot(${i})" style="padding:4px 9px;border-radius:6px;border:1px solid #2A2A3A;background:transparent;color:#6B6B80;font-size:11px;cursor:pointer">🗑</button>
     </div>`).join('');
+}
+
+const TEMPLATES = [
+  {id:'imacorp', name:'Imacorp', emoji:'🏢', bg1:'#1E3FA0', bg2:'#0C2880', accent:'#7EC8FF', textColor:'#FFFFFF', ctaBg:'#FFFFFF', ctaColor:'#1E3FA0', dots:false, layout:'imacorp', phone:'0412-592.41.60'},
+  {id:'crediya', name:'CrediYa', emoji:'🏍️', bg1:'#1A1A1A', bg2:'#0D0D0D', accent:'#FF6F00', textColor:'#FFFFFF', ctaBg:'#FF6F00', ctaColor:'#FFFFFF', dots:false},
+  {id:'pizza',   name:'Pizza',   emoji:'🍕', bg1:'#C0392B', bg2:'#922B21', accent:'#F39C12', textColor:'#FFFFFF', ctaBg:'#F39C12', ctaColor:'#FFFFFF', dots:false},
+  {id:'globos',  name:'Globos',  emoji:'🎈', bg1:'#6A1B9A', bg2:'#4A148C', accent:'#F06292', textColor:'#FFFFFF', ctaBg:'#F06292', ctaColor:'#FFFFFF', dots:true},
+  {id:'doctor',  name:'Dr.Walter',emoji:'🧠', bg1:'#0D3B6E', bg2:'#051E3E', accent:'#4FC3F7', textColor:'#FFFFFF', ctaBg:'#4FC3F7', ctaColor:'#0D3B6E', dots:true},
+  {id:'casa',    name:'Pizzero', emoji:'🍽️', bg1:'#4E342E', bg2:'#3E2723', accent:'#FF7043', textColor:'#FFFFFF', ctaBg:'#FF7043', ctaColor:'#FFFFFF', dots:false},
+  {id:'alberto', name:'Alberto', emoji:'👔', bg1:'#1B2631', bg2:'#0A1628', accent:'#2471A3', textColor:'#FFFFFF', ctaBg:'#2471A3', ctaColor:'#FFFFFF', dots:false},
+  {id:'custom',  name:'Custom',  emoji:'✨', bg1:'#2D1B69', bg2:'#11023E', accent:'#FF6B35', textColor:'#FFFFFF', ctaBg:'#FF6B35', ctaColor:'#FFFFFF', dots:true},
+];
+
+let designData = {di:null, si:null, photo:null, logo:null, tmplId:'imacorp'};
+
+function openDesign(di, si){
+  const story = calendar.days[di].stories[si];
+  const clientId = calendar.client.id;
+  designData.di = di;
+  designData.si = si;
+  designData.photo = null;
+  designData.logo = null;
+  // Pick template matching client
+  const tmpl = TEMPLATES.find(t=>t.id===clientId) || TEMPLATES[0];
+  designData.tmplId = tmpl.id;
+  // Fill fields
+  document.getElementById('design-headline').value = story.text || '';
+  document.getElementById('design-cta').value = story.goal || 'CONTÁCTANOS HOY';
+  document.getElementById('upload-label').innerHTML = '📸 Click para subir foto del producto<br><span style="font-size:10px">PNG con fondo transparente ideal</span>';
+  document.getElementById('logo-upload-label').textContent = '🏷️ Subir logo PNG';
+  const phoneField = document.getElementById('phone-field');
+  if(phoneField){
+    phoneField.style.display = tmpl.layout==='imacorp' ? 'block' : 'none';
+    const pe = document.getElementById('design-phone');
+    if(pe) pe.value = tmpl.phone || '';
+  }
+  // Render template buttons
+  document.getElementById('template-grid').innerHTML = TEMPLATES.map(t=>`
+    <button class="tmpl-btn ${t.id===designData.tmplId?'active':''}" onclick="selectTemplate('${t.id}')" style="border-left:3px solid ${t.accent}">${t.emoji} ${t.name}</button>
+  `).join('');
+  document.getElementById('design-modal').style.display='flex';
+  renderTemplate();
+}
+
+function closeDesign(){
+  document.getElementById('design-modal').style.display='none';
+}
+
+function selectTemplate(id){
+  designData.tmplId = id;
+  document.querySelectorAll('.tmpl-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.tmpl-btn[onclick="selectTemplate('${id}')"]`)?.classList.add('active');
+  const t = TEMPLATES.find(x=>x.id===id)||TEMPLATES[0];
+  const pf = document.getElementById('phone-field');
+  if(pf){ pf.style.display = t.layout==='imacorp'?'block':'none'; }
+  const pe = document.getElementById('design-phone');
+  if(pe && t.phone) pe.value = t.phone;
+  renderTemplate();
+}
+
+function handlePhotoUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => { designData.photo = img; renderTemplate(); };
+    img.src = ev.target.result;
+    document.getElementById('upload-label').innerHTML = `✅ ${file.name}`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleLogoUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => { designData.logo = img; renderTemplate(); };
+    img.src = ev.target.result;
+    document.getElementById('logo-upload-label').textContent = `✅ ${file.name}`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function wrapTextCanvas(ctx, text, x, y, maxW, lineH){
+  const words = text.split(' ');
+  let line = '';
+  let lines = [];
+  for(let w of words){
+    const test = line + w + ' ';
+    if(ctx.measureText(test).width > maxW && line){
+      lines.push(line.trim());
+      line = w + ' ';
+    } else { line = test; }
+  }
+  if(line) lines.push(line.trim());
+  const totalH = lines.length * lineH;
+  let startY = y - totalH/2;
+  lines.forEach(l => { ctx.fillText(l, x, startY); startY += lineH; });
+  return lines.length;
+}
+
+function drawRoundRect(ctx, x, y, w, h, r, fill, stroke){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+  if(fill){ctx.fillStyle=fill; ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke; ctx.lineWidth=2; ctx.stroke();}
+}
+
+function drawImacorpLayout(ctx, W, H, headline, cta, s){
+  const phone = document.getElementById('design-phone')?.value || '0412-592.41.60';
+
+  // Background
+  const grad = ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,'#1E3FA0'); grad.addColorStop(1,'#0C2880');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+  // Big decorative circles (corners)
+  ctx.globalAlpha=0.09; ctx.fillStyle='#FFFFFF';
+  ctx.beginPath(); ctx.arc(-50*s,-50*s,140*s,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W+60*s,H+60*s,170*s,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=0.05;
+  ctx.beginPath(); ctx.arc(W*0.78,H*0.28,70*s,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1;
+
+  // Thin inner border
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=s*0.7;
+  ctx.strokeRect(13*s,13*s,W-26*s,H-26*s);
+
+  // Logo zone top-right
+  if(designData.logo){
+    const lh=28*s, lw=Math.min(lh*(designData.logo.width/designData.logo.height),70*s);
+    ctx.drawImage(designData.logo,W-lw-16*s,17*s,lw,lh);
+  } else {
+    ctx.fillStyle='#FFFFFF'; ctx.font=`bold ${10*s}px Arial`; ctx.textAlign='right';
+    ctx.fillText('IMACORP',W-16*s,31*s);
+    ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${7*s}px Arial`;
+    ctx.fillText('Uniformes & Rotulacion',W-16*s,41*s);
+  }
+
+  // Separator line below logo
+  ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=s*0.5;
+  ctx.beginPath(); ctx.moveTo(14*s,54*s); ctx.lineTo(W-14*s,54*s); ctx.stroke();
+
+  // Split: left column 54% | right column 46%
+  const leftW = W*0.54;
+  const rightX = leftW+6*s;
+  const rightW = W-rightX-14*s;
+
+  // Product photo (right column, y=60s to H*0.72)
+  const photoTop=62*s, photoBot=H*0.72;
+  const photoH=photoBot-photoTop;
+  if(designData.photo){
+    const ph=designData.photo;
+    const sc2=Math.min(rightW/ph.width,photoH/ph.height);
+    const pw=ph.width*sc2, phh=ph.height*sc2;
+    ctx.drawImage(ph,rightX+(rightW-pw)/2,photoTop+(photoH-phh)/2,pw,phh);
+  } else {
+    ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.setLineDash([4*s,4*s]);
+    ctx.strokeRect(rightX,photoTop+10*s,rightW,photoH-20*s); ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.font=`${9*s}px Arial`;
+    ctx.textAlign='center'; ctx.fillText('Foto producto',rightX+rightW/2,photoTop+photoH/2);
+    ctx.textAlign='left';
+  }
+
+  // LEFT: headline
+  ctx.textAlign='left';
+  const numMatch=headline.match(/^(\d+)\s*([\s\S]*)/);
+  let textEndY=62*s;
+  if(numMatch){
+    ctx.fillStyle='#FFFFFF'; ctx.font=`bold italic ${48*s}px Arial`;
+    ctx.fillText(numMatch[1],16*s,118*s);
+    const rest=numMatch[2]||'';
+    ctx.font=`bold ${12*s}px Arial`;
+    const rwords=rest.split(' '); let rline='',rlines=[];
+    for(let w of rwords){
+      const t2=rline+w+' ';
+      if(ctx.measureText(t2).width>leftW-22*s&&rline){rlines.push(rline.trim());rline=w+' ';}
+      else rline=t2;
+    }
+    if(rline)rlines.push(rline.trim());
+    rlines.forEach((l,i)=>{ctx.fillStyle='#FFFFFF';ctx.fillText(l,16*s,126*s+i*16*s);});
+    textEndY=134*s+rlines.length*16*s;
+  } else {
+    ctx.font=`bold ${13*s}px Arial`;
+    const words=(headline||'').split(' '); let line='',y=78*s;
+    for(let w of words){
+      const t2=line+w+' ';
+      if(ctx.measureText(t2).width>leftW-22*s&&line){ctx.fillStyle='#FFFFFF';ctx.fillText(line.trim(),16*s,y);y+=16*s;line=w+' ';}
+      else line=t2;
+    }
+    if(line){ctx.fillStyle='#FFFFFF';ctx.fillText(line.trim(),16*s,y);y+=16*s;}
+    textEndY=y+6*s;
+  }
+
+  // Small accent line under headline
+  ctx.strokeStyle='#7EC8FF'; ctx.lineWidth=1.5*s;
+  ctx.beginPath(); ctx.moveTo(16*s,textEndY); ctx.lineTo(Math.min(70*s,leftW-10*s),textEndY); ctx.stroke();
+  textEndY+=10*s;
+
+  // Feature bullets (left column)
+  const story=calendar?.days[designData.di]?.stories[designData.si];
+  let bullets=[];
+  if(story?.features&&story.features.length) bullets=story.features.slice(0,3);
+  else bullets=['Calidad garantizada','Personalizacion total','Entrega rapida'];
+  ctx.font=`${9*s}px Arial`;
+  bullets.forEach((b,i)=>{
+    const by=textEndY+4*s+i*19*s;
+    ctx.fillStyle='#7EC8FF'; ctx.fillText('>', 16*s,by);
+    ctx.fillStyle='#FFFFFF';
+    let btext=b;
+    while(ctx.measureText(btext).width>leftW-30*s&&btext.length>4) btext=btext.slice(0,-1);
+    ctx.fillText(btext,26*s,by);
+  });
+
+  // Bottom section
+  const botY=H*0.82;
+  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=s*0.5;
+  ctx.beginPath(); ctx.moveTo(14*s,botY); ctx.lineTo(W-14*s,botY); ctx.stroke();
+
+  ctx.fillStyle='#FFFFFF'; ctx.font=`bold ${9*s}px Arial`; ctx.textAlign='left';
+  ctx.fillText((cta||'ESCRIBENOS').toUpperCase(),16*s,botY+14*s);
+  ctx.fillStyle='rgba(255,255,255,0.75)'; ctx.font=`${8*s}px Arial`;
+  ctx.fillText('Tel: '+phone,16*s,botY+26*s);
+  ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${7*s}px Arial`;
+  ctx.fillText('Barquisimeto - Venezuela',16*s,botY+37*s);
+
+  // WhatsApp icon hint right side bottom
+  ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.font=`${7*s}px Arial`; ctx.textAlign='right';
+  ctx.fillText('WhatsApp',W-16*s,botY+26*s);
+}
+
+function renderTemplate(){
+  const canvas = document.getElementById('design-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = 270, H = 480; // preview size (1/4 of 1080x1920)
+  ctx.clearRect(0,0,W,H);
+
+  const tmpl = TEMPLATES.find(t=>t.id===designData.tmplId) || TEMPLATES[0];
+  const headline = document.getElementById('design-headline')?.value || '';
+  const cta = document.getElementById('design-cta')?.value || '';
+
+  if(tmpl.layout === 'imacorp'){
+    drawImacorpLayout(ctx, W, H, headline, cta, 1);
+    return;
+  }
+
+  // Background gradient
+  const grad = ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0, tmpl.bg1);
+  grad.addColorStop(1, tmpl.bg2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+
+  // Decorative dots top-right
+  if(tmpl.dots){
+    ctx.globalAlpha = 0.15;
+    for(let i=0;i<5;i++) for(let j=0;j<5;j++){
+      ctx.beginPath();
+      ctx.arc(W-15-i*12, 15+j*12, 3, 0, Math.PI*2);
+      ctx.fillStyle = tmpl.accent;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Logo area: circle or uploaded logo
+  const logoY = 38;
+  if(designData.logo){
+    const lSize = 44;
+    ctx.drawImage(designData.logo, W/2-lSize/2, logoY-lSize/2, lSize, lSize);
+  } else {
+    // Emoji logo placeholder
+    const clientEmoji = calendar?.client?.emoji || tmpl.emoji;
+    ctx.font = '28px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(clientEmoji, W/2, logoY+10);
+  }
+
+  // Headline text
+  ctx.fillStyle = tmpl.textColor;
+  ctx.font = 'bold 15px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  const headlineY = 90;
+  wrapTextCanvas(ctx, `"${headline}"`, W/2, headlineY, W-24, 19);
+
+  // Divider line
+  ctx.strokeStyle = tmpl.accent;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(W/2-40, 138); ctx.lineTo(W/2+40, 138);
+  ctx.stroke();
+
+  // Product photo
+  const photoY = 148;
+  const photoH = 220;
+  if(designData.photo){
+    const ph = designData.photo;
+    const scale = Math.min((W-20)/ph.width, photoH/ph.height);
+    const pw = ph.width*scale, phh = ph.height*scale;
+    ctx.drawImage(ph, W/2-pw/2, photoY + (photoH-phh)/2, pw, phh);
+  } else {
+    // Placeholder dashed box
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.setLineDash([4,4]);
+    ctx.strokeRect(W/2-60, photoY+20, 120, 160);
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('📸 Foto producto', W/2, photoY+105);
+  }
+
+  // CTA pill badge
+  const ctaY = H - 38;
+  const ctaW = W - 32;
+  const ctaH = 32;
+  drawRoundRect(ctx, 16, ctaY-ctaH/2, ctaW, ctaH, 16, tmpl.ctaBg, null);
+  ctx.fillStyle = tmpl.ctaColor;
+  ctx.font = 'bold 10px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  // Truncate CTA if too long
+  let ctaText = cta.toUpperCase();
+  while(ctx.measureText(ctaText).width > ctaW-20 && ctaText.length > 10)
+    ctaText = ctaText.slice(0,-1);
+  ctx.fillText(ctaText, W/2, ctaY+4);
+}
+
+async function downloadTemplate(){
+  // Render at full 1080x1920
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = 1080; offCanvas.height = 1920;
+  const ctx = offCanvas.getContext('2d');
+  const W=1080, H=1920;
+
+  const tmpl = TEMPLATES.find(t=>t.id===designData.tmplId) || TEMPLATES[0];
+  const headline = document.getElementById('design-headline')?.value || '';
+  const cta = document.getElementById('design-cta')?.value || '';
+
+  if(tmpl.layout === 'imacorp'){
+    drawImacorpLayout(ctx, W, H, headline, cta, 4);
+    const story = calendar.days[designData.di].stories[designData.si];
+    const link = document.createElement('a');
+    link.download = `imacorp_s${story.num}_story.png`;
+    link.href = offCanvas.toDataURL('image/png');
+    link.click();
+    toast('success','✅ Imagen descargada (1080x1920)');
+    return;
+  }
+
+  // Background
+  const grad = ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0, tmpl.bg1);
+  grad.addColorStop(1, tmpl.bg2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+
+  // Dots
+  if(tmpl.dots){
+    ctx.globalAlpha=0.15;
+    for(let i=0;i<7;i++) for(let j=0;j<7;j++){
+      ctx.beginPath();
+      ctx.arc(W-50-i*50, 50+j*50, 12, 0, Math.PI*2);
+      ctx.fillStyle=tmpl.accent; ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // Logo
+  if(designData.logo){
+    const lSize=180;
+    ctx.drawImage(designData.logo, W/2-lSize/2, 80, lSize, lSize);
+  } else {
+    ctx.font='120px serif';
+    ctx.textAlign='center';
+    ctx.fillText(calendar?.client?.emoji||tmpl.emoji, W/2, 240);
+  }
+
+  // Headline
+  ctx.fillStyle=tmpl.textColor;
+  ctx.font='bold 88px Arial, sans-serif';
+  ctx.textAlign='center';
+  wrapTextCanvas(ctx, `"${headline}"`, W/2, 480, W-120, 110);
+
+  // Divider
+  ctx.strokeStyle=tmpl.accent;
+  ctx.lineWidth=6;
+  ctx.beginPath();
+  ctx.moveTo(W/2-180, 680); ctx.lineTo(W/2+180, 680);
+  ctx.stroke();
+
+  // Product photo
+  if(designData.photo){
+    const ph=designData.photo;
+    const maxW=800, maxH=800;
+    const scale=Math.min(maxW/ph.width, maxH/ph.height);
+    const pw=ph.width*scale, phh=ph.height*scale;
+    ctx.drawImage(ph, W/2-pw/2, 720+(maxH-phh)/2, pw, phh);
+  }
+
+  // CTA
+  const ctaY=1780;
+  drawRoundRect(ctx, 80, ctaY-70, W-160, 120, 60, tmpl.ctaBg, null);
+  ctx.fillStyle=tmpl.ctaColor;
+  ctx.font='bold 52px Arial, sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText(cta.toUpperCase().substring(0,40), W/2, ctaY+18);
+
+  // Download
+  const story = calendar.days[designData.di].stories[designData.si];
+  const link = document.createElement('a');
+  link.download = `${calendar.client.id}_s${story.num}_story.png`;
+  link.href = offCanvas.toDataURL('image/png');
+  link.click();
+  toast('success', '✅ Imagen descargada (1080×1920)');
 }
 
 initClients();
