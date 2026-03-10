@@ -110,6 +110,11 @@ body{font-family:system-ui,sans-serif;background:#0A0A0F;color:#F0F0F5;min-heigh
 .panel-img-actions{display:flex;gap:7px;margin-bottom:12px}
 @keyframes imgSpin{to{transform:rotate(360deg)}}
 .img-loading::after{content:'';display:block;width:18px;height:18px;border:2px solid #2A2A3A;border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite}
+.saved-card{background:#13131A;border:1px solid #2A2A3A;border-radius:11px;padding:13px 15px;display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s}
+.saved-card:hover{border-color:#FF6B35}
+.saved-card.active-cal{border-color:#06D6A0}
+.saved-name{font-weight:700;font-size:13px;flex:1}
+.saved-meta{font-size:11px;color:#6B6B80}
 </style>
 </head>
 <body>
@@ -119,6 +124,7 @@ body{font-family:system-ui,sans-serif;background:#0A0A0F;color:#F0F0F5;min-heigh
   <button class="nav-btn active" onclick="showPage('generator',this)" title="Generador">📅</button>
   <button class="nav-btn" onclick="showPage('review',this)" title="Revisión">👁️</button>
   <button class="nav-btn" onclick="showPage('schedule',this)" title="Programar">🚀</button>
+  <button class="nav-btn" onclick="showPage('saved',this)" title="Calendarios guardados">📂</button>
   <div style="flex:1"></div>
   <button class="nav-btn" onclick="document.getElementById('modal-overlay').style.display='flex'" title="Config">⚙️</button>
 </div>
@@ -165,6 +171,11 @@ body{font-family:system-ui,sans-serif;background:#0A0A0F;color:#F0F0F5;min-heigh
     <div id="page-schedule" class="page">
       <div class="label">Programar en Instagram</div>
       <div id="scheduleContent"></div>
+    </div>
+
+    <div id="page-saved" class="page">
+      <div class="label">Calendarios guardados</div>
+      <div id="savedContent"></div>
     </div>
   </div>
 </div>
@@ -281,6 +292,7 @@ function showPage(pg,btn){
   if(btn)btn.classList.add('active');
   if(pg==='review')renderReview();
   if(pg==='schedule')renderSchedule();
+  if(pg==='saved')renderSaved();
 }
 
 function updateDot(){
@@ -371,6 +383,7 @@ function renderCalendar(){
     <div class="calendar-header">
       <div class="label" style="margin:0">${calendar.client.emoji} ${calendar.client.name} · Próxima semana</div>
       <div style="display:flex;gap:8px">
+        <button class="btn-sm btn-outline" onclick="saveCalendarSlot()">💾 Guardar</button>
         <button class="btn-sm btn-outline" onclick="approveAll()">✓ Aprobar todo</button>
         <button class="btn-sm btn-purple" id="btnGenImgs" onclick="generateAllImages()">🎨 Generar imágenes</button>
         <button class="btn-sm btn-purple" onclick="goToPage('review')">👁 Revisar ${approved.size>0?`(${approved.size}/${total})`:''}</button>
@@ -423,6 +436,7 @@ function goToPage(pg){
   });
   if(pg==='review')renderReview();
   if(pg==='schedule')renderSchedule();
+  if(pg==='saved')renderSaved();
 }
 
 function renderReview(){
@@ -713,6 +727,69 @@ function openImgPanel(di,si){
   }else{
     toast('info','Genera la imagen IA primero');
   }
+}
+
+function getSavedCalendars(){
+  try{return JSON.parse(localStorage.getItem('sf_saved')||'[]');}catch{return [];}
+}
+
+function saveCalendarSlot(){
+  if(!calendar)return;
+  const saved=getSavedCalendars();
+  // check if already saved for this client+week, update it
+  const key=calendar.client.id+'_'+calendar.dates[0];
+  const idx=saved.findIndex(s=>s.key===key);
+  const slot={key,name:calendar.client.name,emoji:calendar.client.emoji,client:calendar.client,date:new Date().toLocaleDateString('es'),days:calendar.days,dates:calendar.dates,approved:[...approved]};
+  if(idx>=0)saved[idx]=slot;else saved.unshift(slot);
+  if(saved.length>20)saved.pop();
+  localStorage.setItem('sf_saved',JSON.stringify(saved));
+  toast('success',`💾 Guardado: ${calendar.client.name}`);
+}
+
+function loadCalendarSlot(idx){
+  const saved=getSavedCalendars();
+  const slot=saved[idx];
+  if(!slot)return;
+  calendar={days:slot.days,client:slot.client,dates:slot.dates.map(d=>new Date(d))};
+  approved=new Set(slot.approved||[]);
+  selectedClient=slot.client;
+  saveState();
+  document.querySelectorAll('.client-card').forEach(el=>el.classList.remove('selected'));
+  const card=document.getElementById('card-'+slot.client.id);
+  if(card)card.classList.add('selected');
+  renderCalendar();
+  goToPage('generator');
+  toast('success',`📂 ${slot.name} cargado`);
+}
+
+function deleteCalendarSlot(idx){
+  const saved=getSavedCalendars();
+  const name=saved[idx]?.name;
+  saved.splice(idx,1);
+  localStorage.setItem('sf_saved',JSON.stringify(saved));
+  renderSaved();
+  toast('info',`🗑 ${name} eliminado`);
+}
+
+function renderSaved(){
+  const el=document.getElementById('savedContent');
+  if(!el)return;
+  const saved=getSavedCalendars();
+  if(saved.length===0){
+    el.innerHTML=`<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">Sin calendarios guardados</div><div style="font-size:13px">Genera un calendario y haz clic en 💾 Guardar</div></div>`;
+    return;
+  }
+  const currentKey=calendar?calendar.client.id+'_'+calendar.dates[0]:'';
+  el.innerHTML=saved.map((s,i)=>`
+    <div class="saved-card ${s.key===currentKey?'active-cal':''}" onclick="loadCalendarSlot(${i})">
+      <div style="font-size:24px">${s.emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div class="saved-name">${s.name}</div>
+        <div class="saved-meta">Guardado: ${s.date} · ${s.days?.length||7} días · ${(s.approved||[]).length} aprobadas</div>
+      </div>
+      ${s.key===currentKey?'<span style="color:#06D6A0;font-size:11px;font-weight:700">Activo</span>':''}
+      <button onclick="event.stopPropagation();deleteCalendarSlot(${i})" style="padding:4px 9px;border-radius:6px;border:1px solid #2A2A3A;background:transparent;color:#6B6B80;font-size:11px;cursor:pointer">🗑</button>
+    </div>`).join('');
 }
 
 initClients();
