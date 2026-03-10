@@ -236,6 +236,27 @@ function getNextWeekDates(){
 
 let selectedClient=null,calendar=null,approved=new Set(),dates=getNextWeekDates(),progressInterval=null,panelData=null;
 
+function saveState(){
+  try{
+    localStorage.setItem('sf_calendar',JSON.stringify(calendar));
+    localStorage.setItem('sf_approved',JSON.stringify([...approved]));
+  }catch(e){}
+}
+
+function loadState(){
+  try{
+    const cal=localStorage.getItem('sf_calendar');
+    const app=localStorage.getItem('sf_approved');
+    if(cal){
+      calendar=JSON.parse(cal);
+      // restaurar fechas como objetos Date
+      if(calendar.dates)calendar.dates=calendar.dates.map(d=>new Date(d));
+      else calendar.dates=dates;
+    }
+    if(app)approved=new Set(JSON.parse(app));
+  }catch(e){}
+}
+
 function initClients(){
   document.getElementById('clientsGrid').innerHTML=CLIENTS.map(c=>`
     <div class="client-card" id="card-${c.id}" onclick="selectClient('${c.id}')">
@@ -330,6 +351,7 @@ Responde SOLO JSON válido sin texto extra ni backticks:
     clearInterval(progressInterval);setProgress(100);
     setTimeout(()=>setProgress(0),600);
     calendar={...parsed,client:c,dates};
+    saveState();
     renderCalendar();
     toast('success',`✅ Calendario listo para ${c.name}`);
   }catch(e){
@@ -444,7 +466,7 @@ function renderReview(){
 
 function toggleApprove(id){
   if(approved.has(id))approved.delete(id);else approved.add(id);
-  renderReview();renderCalendar();
+  saveState();renderReview();renderCalendar();
 }
 
 function renderSchedule(){
@@ -541,7 +563,7 @@ function closePanel(){
 
 function toggleApprovePanel(id){
   if(approved.has(id))approved.delete(id);else approved.add(id);
-  closePanel();renderCalendar();renderReview();
+  saveState();closePanel();renderCalendar();renderReview();
 }
 
 function saveEdit(){
@@ -580,6 +602,7 @@ async function loadOneImage(di,si){
     img.onload=()=>{
       clearTimeout(timer);
       story._imgLoaded=true;
+      saveState();
       wrap.innerHTML=`<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`;
       resolve();
     };
@@ -629,6 +652,8 @@ function getImageUrl(prompt,seed=1,full=false){
 function regenImage(di,si){
   const story=calendar.days[di].stories[si];
   story._seed=Date.now();
+  story._imgLoaded=false;
+  saveState();
   renderCalendar();
   if(document.getElementById('page-review').classList.contains('active'))renderReview();
   toast('info','🎨 Regenerando imagen...');
@@ -678,6 +703,17 @@ function openImgPanel(di,si){
 }
 
 initClients();
+loadState();
+if(calendar){
+  selectedClient=calendar.client;
+  if(selectedClient){
+    document.querySelectorAll('.client-card').forEach(el=>el.classList.remove('selected'));
+    const card=document.getElementById('card-'+selectedClient.id);
+    if(card)card.classList.add('selected');
+  }
+  renderCalendar();
+  toast('info',`📅 Calendario de ${calendar.client.name} restaurado`);
+}
 </script>
 </body>
 </html>
