@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StoryFlow — Gestor de Historias IG</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:#0A0A0F;color:#F0F0F5;min-height:100vh;display:flex}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#2A2A3A;border-radius:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}
+#sidebar{width:60px;background:#13131A;border-right:1px solid #2A2A3A;display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:6px;flex-shrink:0;min-height:100vh;position:sticky;top:0;height:100vh}
+.logo{font-weight:900;font-size:18px;color:#FF6B35;margin-bottom:14px;letter-spacing:-1px}
+.nav-btn{width:44px;height:44px;border-radius:12px;border:none;background:transparent;color:#6B6B80;font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;transition:all 0.2s}
+.nav-btn.active{background:#1C1C27;color:#FF6B35}
+.nav-btn.active::before{content:'';position:absolute;left:0;width:3px;height:22px;background:#FF6B35;border-radius:0 3px 3px 0}
+#topbar{height:56px;background:#13131A;border-bottom:1px solid #2A2A3A;display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:50}
+.title{font-weight:800;font-size:16px;flex:1}
+.title span{color:#FF6B35}
+.token-bar{display:flex;align-items:center;gap:8px;background:#1C1C27;border:1px solid #2A2A3A;border-radius:9px;padding:5px 11px}
+.token-bar input{background:none;border:none;outline:none;color:#F0F0F5;font-size:12px;width:160px}
+.dot{width:7px;height:7px;border-radius:50%;background:#444;flex-shrink:0;transition:all 0.3s}
+.dot.on{background:#06D6A0;box-shadow:0 0 6px #06D6A0}
+#main{flex:1;display:flex;flex-direction:column;min-width:0}
+#content{flex:1;padding:20px;overflow-y:auto;max-width:1100px;width:100%;margin:0 auto}
+.label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6B6B80;margin-bottom:10px}
+.clients-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:24px}
+.client-card{background:#13131A;border:1px solid #2A2A3A;border-radius:12px;padding:12px 8px;cursor:pointer;text-align:center;position:relative;transition:all 0.15s}
+.client-card:hover{border-color:#444}
+.client-card.selected{background:linear-gradient(135deg,rgba(255,107,53,0.18),rgba(124,58,237,0.1));border-color:#FF6B35}
+.client-card .check{position:absolute;top:6px;right:8px;font-size:10px;color:#FF6B35;font-weight:800;display:none}
+.client-card.selected .check{display:block}
+.client-emoji{font-size:26px;margin-bottom:5px}
+.client-name{font-weight:700;font-size:11px;line-height:1.3}
+.client-stories{font-size:10px;color:#6B6B80;margin-top:2px}
+.controls{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end}
+.field label{display:block;font-size:11px;color:#6B6B80;margin-bottom:5px}
+.field select,.field input{background:#13131A;border:1px solid #2A2A3A;border-radius:9px;color:#F0F0F5;font-size:13px;padding:9px 12px;outline:none;font-family:system-ui}
+.field input{width:100%}
+.field.grow{flex:1;min-width:180px}
+.btn-generate{padding:9px 22px;border-radius:9px;border:none;background:#FF6B35;color:white;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;transition:all 0.2s}
+.btn-generate:disabled{background:#333;cursor:not-allowed}
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;display:inline-block;animation:spin 0.7s linear infinite}
+.progress-bar{height:3px;background:#1C1C27;border-radius:2px;margin-bottom:16px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#FF6B35,#7C3AED,#06D6A0);transition:width 0.4s ease}
+.empty-state{text-align:center;padding:50px 0;color:#6B6B80}
+.empty-icon{font-size:44px;margin-bottom:12px;opacity:0.35}
+.empty-title{font-weight:700;font-size:17px;color:#F0F0F5;margin-bottom:6px}
+.calendar-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.btn-sm{padding:6px 13px;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer;transition:all 0.2s}
+.btn-outline{background:transparent;border:1px solid #2A2A3A;color:#F0F0F5}
+.btn-purple{background:#7C3AED;border:none;color:white}
+.btn-green{background:#06D6A0;border:none;color:#000}
+.btn-orange{background:#FF6B35;border:none;color:white}
+.days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;overflow-x:auto;padding-bottom:4px}
+.day-col{background:#13131A;border:1px solid #2A2A3A;border-radius:12px;overflow:hidden;min-width:110px}
+.day-header{padding:8px;background:#1C1C27;border-bottom:1px solid #2A2A3A;text-align:center}
+.day-name{font-weight:800;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#FF6B35}
+.day-date{font-size:10px;color:#6B6B80;margin-top:1px}
+.day-theme{font-size:9px;color:#6B6B80;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+.day-stories{padding:5px;display:flex;flex-direction:column;gap:4px}
+.story-card{background:#1C1C27;border:1px solid #2A2A3A;border-radius:7px;padding:6px 7px;cursor:pointer;transition:border-color 0.15s;position:relative}
+.story-card:hover{border-color:#444}
+.story-card.approved{border-color:#06D6A0}
+.story-check{position:absolute;top:3px;right:5px;font-size:8px;color:#06D6A0;font-weight:800;display:none}
+.story-card.approved .story-check{display:block}
+.story-num{font-size:9px;color:#6B6B80;margin-bottom:2px}
+.story-tag{display:inline-block;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;letter-spacing:0.3px;text-transform:uppercase;margin-bottom:3px}
+.story-text{font-size:9px;color:#B0B0C0;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.review-bar{background:#1C1C27;border:1px solid #2A2A3A;border-radius:11px;padding:11px 14px;display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.review-count{font-weight:700;font-size:13px;color:#06D6A0;flex:1}
+.day-section{margin-bottom:18px}
+.day-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6B6B80;margin-bottom:8px}
+.review-card{background:#13131A;border:1px solid #2A2A3A;border-radius:11px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;margin-bottom:7px;transition:border-color 0.2s}
+.review-card.approved{border-color:#06D6A0}
+.story-badge{background:#FF6B35;color:white;font-weight:800;font-size:10px;padding:2px 9px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.review-body{flex:1;min-width:0}
+.review-meta{font-size:11px;color:#6B6B80;margin-bottom:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.review-text{font-size:13px;font-weight:500;margin-bottom:3px}
+.review-sub{font-size:11px;color:#6B6B80}
+.btn-approve{padding:5px 12px;border-radius:7px;font-weight:700;font-size:11px;cursor:pointer;flex-shrink:0;transition:all 0.2s}
+.schedule-alert{border-radius:11px;padding:12px 14px;margin-bottom:18px;font-size:12px;line-height:1.7}
+.schedule-card{background:#13131A;border:1px solid #06D6A0;border-radius:11px;padding:12px 14px;display:flex;gap:10px;align-items:center;margin-bottom:7px}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:150;display:none}
+#panel{position:fixed;right:0;top:0;bottom:0;width:380px;background:#13131A;border-left:1px solid #2A2A3A;z-index:200;display:none;flex-direction:column;animation:slideIn 0.25s ease}
+.panel-header{padding:16px 18px;border-bottom:1px solid #2A2A3A;background:#1C1C27;display:flex;align-items:center;gap:10px}
+.panel-title{font-weight:800;font-size:14px;flex:1}
+.panel-body{flex:1;overflow-y:auto;padding:18px}
+.panel-footer{padding:12px 18px;border-top:1px solid #2A2A3A;display:flex;gap:7px}
+.panel-section{background:#1C1C27;border:1px solid #2A2A3A;border-radius:11px;padding:14px;margin-bottom:12px}
+.panel-field{margin-bottom:9px}
+.panel-field-label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#6B6B80;margin-bottom:3px}
+.panel-field-value{font-size:12px;color:#F0F0F5;line-height:1.5;background:#13131A;padding:7px 10px;border-radius:7px;border:1px solid #2A2A3A}
+.panel-textarea{width:100%;min-height:85px;background:#1C1C27;border:1px solid #2A2A3A;border-radius:9px;color:#F0F0F5;font-family:system-ui;font-size:13px;padding:9px 11px;outline:none;resize:vertical}
+#toasts{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:7px;z-index:1000}
+.toast{background:#1C1C27;border-radius:10px;padding:10px 14px;font-size:12px;display:flex;align-items:center;gap:8px;animation:slideIn 0.3s ease;max-width:280px;color:#F0F0F5}
+.page{display:none;animation:fadeUp 0.3s ease}
+.page.active{display:block}
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="logo">SF</div>
+  <button class="nav-btn active" onclick="showPage('generator',this)" title="Generador">📅</button>
+  <button class="nav-btn" onclick="showPage('review',this)" title="Revisión">👁️</button>
+  <button class="nav-btn" onclick="showPage('schedule',this)" title="Programar">🚀</button>
+  <div style="flex:1"></div>
+  <button class="nav-btn" onclick="document.getElementById('modal-overlay').style.display='flex'" title="Config">⚙️</button>
+</div>
+
+<div id="main">
+  <div id="topbar">
+    <div class="title">Story<span>Flow</span> <span style="color:#6B6B80;font-weight:400;font-size:13px">— Gestor de Historias IG</span></div>
+    <div class="token-bar">
+      <span style="font-size:11px;color:#6B6B80;white-space:nowrap">Token Meta:</span>
+      <input type="password" id="metaToken" placeholder="Pega tu token" oninput="updateDot()">
+      <div class="dot" id="tokenDot"></div>
+    </div>
+  </div>
+
+  <div id="content">
+    <div id="page-generator" class="page active">
+      <div class="label">Selecciona el cliente</div>
+      <div class="clients-grid" id="clientsGrid"></div>
+      <div class="controls">
+        <div class="field">
+          <label>Semana</label>
+          <select><option>Próxima semana</option></select>
+        </div>
+        <div class="field grow">
+          <label>Tema especial (opcional)</label>
+          <input type="text" id="specialTheme" placeholder="ej: flores amarillas, promo fin de semana...">
+        </div>
+        <button class="btn-generate" id="btnGenerate" onclick="generateCalendar()">✨ Generar Calendario</button>
+      </div>
+      <div class="progress-bar" id="progressBar" style="display:none"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">📅</div>
+        <div class="empty-title">Selecciona un cliente y genera tu calendario</div>
+        <div style="font-size:13px">La IA creará 7 días de historias estratégicas listas para publicar</div>
+      </div>
+      <div id="calendarView" style="display:none"></div>
+    </div>
+
+    <div id="page-review" class="page">
+      <div class="label">Revisión y aprobación</div>
+      <div id="reviewContent"></div>
+    </div>
+
+    <div id="page-schedule" class="page">
+      <div class="label">Programar en Instagram</div>
+      <div id="scheduleContent"></div>
+    </div>
+  </div>
+</div>
+
+<div id="overlay" onclick="closePanel()"></div>
+<div id="panel">
+  <div class="panel-header">
+    <div class="panel-title" id="panelTitle">Historia</div>
+    <button style="width:30px;height:30px;border-radius:7px;border:1px solid #2A2A3A;background:transparent;color:#6B6B80;cursor:pointer;font-size:14px" onclick="closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:300;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#13131A;border:1px solid #2A2A3A;border-radius:18px;padding:28px;max-width:460px;width:100%">
+    <div style="font-weight:900;font-size:19px;margin-bottom:7px">⚙️ Configurar API de Meta</div>
+    <div style="font-size:13px;color:#6B6B80;margin-bottom:18px;line-height:1.6">Para publicar directo en Instagram necesitas tu token de Meta Business.</div>
+    <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:9px;padding:11px 14px;font-size:12px;color:#a78bfa;line-height:1.8;margin-bottom:18px">
+      <strong style="color:white">¿Cómo obtener tu token?</strong><br>
+      1. Ve a <strong>developers.facebook.com</strong><br>
+      2. Crea una app → Agrega "Instagram"<br>
+      3. Genera token con permiso: <code>instagram_content_publish</code>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#6B6B80;margin-bottom:5px;text-transform:uppercase">Token de acceso Meta</label>
+      <input type="password" id="modalMetaToken" placeholder="EAABsbCS..." style="width:100%;background:#1C1C27;border:1px solid #2A2A3A;border-radius:9px;color:#F0F0F5;font-family:monospace;font-size:12px;padding:9px 12px;outline:none">
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#6B6B80;margin-bottom:5px;text-transform:uppercase">Instagram Business Account ID</label>
+      <input type="text" id="igId" placeholder="17841400000000000" style="width:100%;background:#1C1C27;border:1px solid #2A2A3A;border-radius:9px;color:#F0F0F5;font-family:monospace;font-size:12px;padding:9px 12px;outline:none">
+    </div>
+    <div style="display:flex;gap:9px;margin-top:6px">
+      <button onclick="saveModal()" style="flex:1;padding:9px;border-radius:9px;border:none;background:#FF6B35;color:white;font-weight:800;font-size:13px;cursor:pointer">💾 Guardar</button>
+      <button onclick="document.getElementById('modal-overlay').style.display='none'" style="padding:9px 18px;border-radius:9px;border:1px solid #2A2A3A;background:transparent;color:#F0F0F5;font-weight:700;font-size:13px;cursor:pointer">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+const GROQ_API_KEY = "TU_API_KEY_DE_GROQ_AQUI";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+
+const CLIENTS = [
+  { id: 'pizza', name: 'Pizza de Verdad', emoji: '🍕', stories: 6, tone: 'divertido y familiar, venezolano', niche: 'pizzería', goals: 'atraer clientes al local, mostrar pizzas, ambiente familiar, promociones' },
+  { id: 'doctor', name: 'Dr. Walter', emoji: '🧠', stories: 2, tone: 'profesional y confiable', niche: 'neurocirujano', goals: 'educación médica, generar confianza, prevención, salud cerebral' },
+  { id: 'globos', name: 'Imacaballoons', emoji: '🎈', stories: 7, tone: 'alegre y colorido, venezolano', niche: 'globos y decoración', goals: 'vender decoraciones. ESPECIAL: flores amarillas, cajas portaflores, papel coreano' },
+  { id: 'imacorp', name: 'Imacorp', emoji: '👕', stories: 5, tone: 'profesional corporativo', niche: 'uniformes, rotulación, material POP', goals: 'atraer empresas' },
+  { id: 'crediya', name: 'CrediYa Motors', emoji: '🏍️', stories: 5, tone: 'emocionante y accesible', niche: 'financiamiento de motos Venezuela y Colombia', goals: 'captar clientes para financiar motos' },
+  { id: 'casa', name: 'Casa de Pizzero', emoji: '🍽️', stories: 5, tone: 'técnico y apasionado', niche: 'utensilios para pizzerías', goals: 'vender herramientas a pizzeros profesionales' },
+  { id: 'alberto', name: 'Alberto Castañeda', emoji: '👔', stories: 2, tone: 'inspirador y directo, venezolano', niche: 'marca personal CEO', goals: 'liderazgo, negocios, emprendimiento, mentalidad empresarial' },
+];
+
+const TAG_COLORS = {
+  foto:{bg:'rgba(255,107,53,0.2)',color:'#FF6B35'},video:{bg:'rgba(124,58,237,0.2)',color:'#a78bfa'},
+  encuesta:{bg:'rgba(6,214,160,0.2)',color:'#06D6A0'},pregunta:{bg:'rgba(255,215,0,0.2)',color:'#FFD700'},
+  slider:{bg:'rgba(255,71,87,0.2)',color:'#FF4757'},meme:{bg:'rgba(124,58,237,0.2)',color:'#a78bfa'},
+  cta:{bg:'rgba(255,107,53,0.3)',color:'#FF6B35'},'detrás de cámara':{bg:'rgba(6,214,160,0.2)',color:'#06D6A0'}
+};
+function ts(type){return TAG_COLORS[(type||'').toLowerCase()]||TAG_COLORS.foto}
+
+function getNextWeekDates(){
+  const today=new Date(),dow=today.getDay(),diff=dow===0?1:8-dow,monday=new Date(today);
+  monday.setDate(today.getDate()+diff);
+  return Array.from({length:7},(_,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
+}
+
+let selectedClient=null,calendar=null,approved=new Set(),dates=getNextWeekDates(),progressInterval=null,panelData=null;
+
+function initClients(){
+  document.getElementById('clientsGrid').innerHTML=CLIENTS.map(c=>`
+    <div class="client-card" id="card-${c.id}" onclick="selectClient('${c.id}')">
+      <span class="check">✓</span>
+      <div class="client-emoji">${c.emoji}</div>
+      <div class="client-name">${c.name}</div>
+      <div class="client-stories">${c.stories} stories/día</div>
+    </div>`).join('');
+}
+
+function selectClient(id){
+  selectedClient=CLIENTS.find(c=>c.id===id);
+  document.querySelectorAll('.client-card').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('card-'+id).classList.add('selected');
+  toast('info',`${selectedClient.emoji} ${selectedClient.name} seleccionado`);
+}
+
+function showPage(pg,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+pg).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  if(pg==='review')renderReview();
+  if(pg==='schedule')renderSchedule();
+}
+
+function updateDot(){
+  const val=document.getElementById('metaToken').value;
+  document.getElementById('tokenDot').className='dot'+(val.length>10?' on':'');
+}
+
+function saveModal(){
+  const t=document.getElementById('modalMetaToken').value;
+  if(t)document.getElementById('metaToken').value=t;
+  updateDot();
+  document.getElementById('modal-overlay').style.display='none';
+  toast('success','✅ Configuración guardada');
+}
+
+function toast(type,msg){
+  const colors={success:'#06D6A0',error:'#FF4757',info:'#7C3AED'};
+  const icons={success:'✅',error:'❌',info:'ℹ️'};
+  const el=document.createElement('div');
+  el.className='toast';
+  el.style.border=`1px solid ${colors[type]||'#7C3AED'}`;
+  el.innerHTML=`${icons[type]||'ℹ️'} ${msg}`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+function setProgress(val){
+  const bar=document.getElementById('progressBar'),fill=document.getElementById('progressFill');
+  if(val>0){bar.style.display='block';fill.style.width=val+'%';}
+  else{bar.style.display='none';fill.style.width='0%';}
+}
+
+async function generateCalendar(){
+  if(!selectedClient){toast('error','⚠️ Selecciona un cliente primero');return;}
+  const btn=document.getElementById('btnGenerate');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Generando...';
+  setProgress(10);approved=new Set();calendar=null;
+  progressInterval=setInterval(()=>{
+    const fill=document.getElementById('progressFill');
+    const cur=parseFloat(fill.style.width)||10;
+    if(cur<85)fill.style.width=(cur+Math.random()*10)+'%';
+  },400);
+  const c=selectedClient,theme=document.getElementById('specialTheme').value;
+  const prompt=`Eres estratega senior de contenido para Instagram especializado en storytelling y ventas en Venezuela.
+Crea calendario semanal de historias para:
+CLIENTE: ${c.name}
+NEGOCIO: ${c.niche}
+OBJETIVO: ${c.goals}
+TONO: ${c.tone}
+HISTORIAS POR DÍA: ${c.stories}
+${theme?'TEMA ESPECIAL: '+theme:''}
+IDIOMA: Español venezolano/coloquial, cercano, natural
+ESTRUCTURA: S1:Gancho | S2:Desarrollo | S3:Producto | S4:Beneficio | S5:Interacción | S6:CTA
+TIPOS: foto, video, encuesta, pregunta, slider, meme, detrás de cámara
+Varía los tipos cada día. Usa encuestas y preguntas al menos 2 veces por semana.
+Responde SOLO JSON válido sin texto extra ni backticks:
+{"days":[{"day":"Lunes","theme":"tema corto","stories":[{"num":1,"role":"Gancho","type":"video","text":"texto máx 15 palabras","visual":"qué mostrar","goal":"objetivo breve"}]}]}`;
+
+  try{
+    const res=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+GROQ_API_KEY},
+      body:JSON.stringify({model:GROQ_MODEL,max_tokens:4000,messages:[{role:"user",content:prompt}]})
+    });
+    const data=await res.json();
+    let raw=(data.choices?.[0]?.message?.content||'').replace(/```json|```/g,'').trim();    const parsed=JSON.parse(raw);
+    clearInterval(progressInterval);setProgress(100);
+    setTimeout(()=>setProgress(0),600);
+    calendar={...parsed,client:c,dates};
+    renderCalendar();
+    toast('success',`✅ Calendario listo para ${c.name}`);
+  }catch(e){
+    clearInterval(progressInterval);setProgress(0);
+    toast('error','❌ Error al generar. Intenta de nuevo.');
+    console.error(e);
+  }
+  btn.disabled=false;btn.innerHTML='✨ Generar Calendario';
+}
+
+function renderCalendar(){
+  document.getElementById('emptyState').style.display='none';
+  const view=document.getElementById('calendarView');
+  view.style.display='block';
+  const total=calendar.days.reduce((a,d)=>a+d.stories.length,0);
+  view.innerHTML=`
+    <div class="calendar-header">
+      <div class="label" style="margin:0">${calendar.client.emoji} ${calendar.client.name} · Próxima semana</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-sm btn-outline" onclick="approveAll()">✓ Aprobar todo</button>
+        <button class="btn-sm btn-purple" onclick="goToPage('review')">👁 Revisar ${approved.size>0?`(${approved.size}/${total})`:''}</button>
+      </div>
+    </div>
+    <div class="days-grid">
+      ${calendar.days.map((day,di)=>`
+        <div class="day-col">
+          <div class="day-header">
+            <div class="day-name">${day.day}</div>
+            <div class="day-date">${dates[di]?.getDate()}/${(dates[di]?.getMonth()||0)+1}</div>
+            <div class="day-theme">${day.theme}</div>
+          </div>
+          <div class="day-stories">
+            ${day.stories.map((s,si)=>{
+              const id=`${di}-${s.num}`,t=ts(s.type);
+              return `<div class="story-card ${approved.has(id)?'approved':''}" id="sc-${id}" onclick="openPanel(${di},${si})">
+                <span class="story-check">✓</span>
+                <div class="story-num">S${s.num} · ${s.role}</div>
+                <span class="story-tag" style="background:${t.bg};color:${t.color}">${s.type}</span>
+                <div class="story-text">${s.text}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function approveAll(){
+  if(!calendar)return;
+  calendar.days.forEach((d,di)=>d.stories.forEach(s=>approved.add(`${di}-${s.num}`)));
+  renderCalendar();renderReview();
+  toast('success',`✅ ${approved.size} historias aprobadas`);
+}
+
+function goToPage(pg){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+pg).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach((b,i)=>{
+    if((pg==='generator'&&i===0)||(pg==='review'&&i===1)||(pg==='schedule'&&i===2))b.classList.add('active');
+    else b.classList.remove('active');
+  });
+  if(pg==='review')renderReview();
+  if(pg==='schedule')renderSchedule();
+}
+
+function renderReview(){
+  const el=document.getElementById('reviewContent');
+  if(!calendar){el.innerHTML=`<div class="empty-state"><div class="empty-icon">👁️</div><div class="empty-title">Nada por revisar</div><div style="font-size:13px">Genera un calendario primero</div></div>`;return;}
+  const total=calendar.days.reduce((a,d)=>a+d.stories.length,0);
+  el.innerHTML=`
+    <div class="review-bar">
+      <span class="review-count">✅ ${approved.size} / ${total} historias aprobadas</span>
+      <button class="btn-sm btn-green" onclick="approveAll()">Aprobar todo</button>
+      <button class="btn-sm btn-orange" onclick="goToPage('schedule')" ${approved.size===0?'disabled style="background:#333;cursor:not-allowed"':''}>🚀 Programar (${approved.size})</button>
+    </div>
+    ${calendar.days.map((day,di)=>`
+      <div class="day-section">
+        <div class="day-label">${day.day} · ${day.theme}</div>
+        ${day.stories.map((story,si)=>{
+          const id=`${di}-${story.num}`,t=ts(story.type);
+          return `<div class="review-card ${approved.has(id)?'approved':''}" id="rc-${id}">
+            <span class="story-badge">S${story.num}</span>
+            <div class="review-body">
+              <div class="review-meta">${story.role} · <span class="story-tag" style="background:${t.bg};color:${t.color}">${story.type}</span></div>
+              <div class="review-text">${story.text}</div>
+              <div class="review-sub">📸 ${story.visual}</div>
+              <div class="review-sub">🎯 ${story.goal}</div>
+            </div>
+            <button class="btn-approve" onclick="toggleApprove('${id}')" style="background:${approved.has(id)?'transparent':'#06D6A0'};color:${approved.has(id)?'#F0F0F5':'#000'};border:${approved.has(id)?'1px solid #2A2A3A':'none'}">${approved.has(id)?'↩':'✓'}</button>
+          </div>`;
+        }).join('')}
+      </div>`).join('')}`;
+}
+
+function toggleApprove(id){
+  if(approved.has(id))approved.delete(id);else approved.add(id);
+  renderReview();renderCalendar();
+}
+
+function renderSchedule(){
+  const el=document.getElementById('scheduleContent');
+  if(approved.size===0){el.innerHTML=`<div class="empty-state"><div class="empty-icon">🚀</div><div class="empty-title">Sin historias aprobadas</div><div style="font-size:13px">Aprueba historias en Revisión primero</div></div>`;return;}
+  const token=document.getElementById('metaToken').value;
+  const stories=[];
+  if(calendar)calendar.days.forEach((day,di)=>day.stories.filter(s=>approved.has(`${di}-${s.num}`)).forEach(s=>stories.push({day,di,s})));
+  el.innerHTML=`
+    <div class="schedule-alert" style="background:${token?'rgba(6,214,160,0.08)':'rgba(255,71,87,0.08)'};border:1px solid ${token?'rgba(6,214,160,0.3)':'rgba(255,71,87,0.3)'};color:${token?'#06D6A0':'#ff6b7a'}">
+      ${token?'✅ <strong>Token conectado</strong> — Listo para programar':'<strong>⚠️ Configura tu token de Meta primero</strong><br>Pega tu token en la barra superior o ve a ⚙️'}
+    </div>
+    <div style="display:flex;gap:9px;margin-bottom:20px;flex-wrap:wrap">
+      <button class="btn-sm btn-outline" onclick="exportCSV()" style="padding:9px 16px">📥 Exportar CSV</button>
+      <button class="btn-sm btn-outline" onclick="copyAll()" style="padding:9px 16px">📋 Copiar textos</button>
+    </div>
+    ${stories.map(({day,s})=>{const t=ts(s.type);return `<div class="schedule-card">
+      <div style="font-size:22px">${calendar.client.emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:#6B6B80;margin-bottom:2px">${day.day} · Story ${s.num} · <span class="story-tag" style="background:${t.bg};color:${t.color}">${s.type}</span></div>
+        <div style="font-size:13px;font-weight:500">${s.text}</div>
+        <div style="font-size:11px;color:#6B6B80;margin-top:1px">📸 ${s.visual}</div>
+      </div>
+      <div style="font-size:18px">⏳</div>
+    </div>`;}).join('')}`;
+}
+
+function exportCSV(){
+  if(!calendar)return;
+  let csv='Día,Story,Rol,Tipo,Texto,Visual,Objetivo,Aprobada\n';
+  calendar.days.forEach((day,di)=>day.stories.forEach(s=>{
+    const id=`${di}-${s.num}`;
+    csv+=`"${day.day}","${s.num}","${s.role}","${s.type}","${s.text.replace(/"/g,'""')}","${s.visual.replace(/"/g,'""')}","${s.goal.replace(/"/g,'""')}","${approved.has(id)?'Sí':'No'}"\n`;
+  }));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download=`calendario_${calendar.client.id}.csv`;a.click();
+  toast('success','📥 CSV exportado');
+}
+
+function copyAll(){
+  if(!calendar)return;
+  let text=`CALENDARIO ${calendar.client.name.toUpperCase()}\n${'='.repeat(40)}\n\n`;
+  calendar.days.forEach((day,di)=>{
+    text+=`📅 ${day.day.toUpperCase()} — ${day.theme}\n${'-'.repeat(30)}\n`;
+    day.stories.forEach(s=>{text+=`Story ${s.num} [${s.type.toUpperCase()}] · ${s.role}\n📝 ${s.text}\n🎨 ${s.visual}\n🎯 ${s.goal}\n\n`;});
+  });
+  navigator.clipboard.writeText(text).then(()=>toast('success','📋 Copiado al portapapeles'));
+}
+
+function openPanel(di,si){
+  const story=calendar.days[di].stories[si];
+  panelData={di,si};
+  document.getElementById('panelTitle').textContent=`${calendar.days[di].day} · Story ${story.num}`;
+  const t=ts(story.type);
+  document.getElementById('panelBody').innerHTML=`
+    <div class="panel-section">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px">
+        <span class="story-badge">Story ${story.num}</span>
+        <span style="font-weight:700;font-size:12px">${story.role}</span>
+        <span class="story-tag" style="margin-left:auto;background:${t.bg};color:${t.color}">${story.type}</span>
+      </div>
+      ${[['📝 Texto','text'],['🎨 Visual sugerido','visual'],['🎯 Objetivo','goal']].map(([label,key])=>`
+        <div class="panel-field">
+          <div class="panel-field-label">${label}</div>
+          <div class="panel-field-value">${story[key]}</div>
+        </div>`).join('')}
+    </div>
+    <div style="font-size:10px;color:#6B6B80;margin-bottom:5px">✏️ Editar texto</div>
+    <textarea class="panel-textarea" id="editText">${story.text}</textarea>`;
+  const id=`${di}-${story.num}`,isApproved=approved.has(id);
+  document.getElementById('panelFooter').innerHTML=`
+    <button onclick="toggleApprovePanel('${id}')" style="flex:1;padding:8px;border-radius:8px;border:${isApproved?'1px solid #2A2A3A':'none'};background:${isApproved?'transparent':'#06D6A0'};color:${isApproved?'#F0F0F5':'#000'};font-weight:800;font-size:12px;cursor:pointer">${isApproved?'↩ Desaprobar':'✓ Aprobar'}</button>
+    <button onclick="saveEdit()" style="padding:8px 14px;border-radius:8px;border:1px solid #2A2A3A;background:transparent;color:#F0F0F5;font-weight:800;font-size:12px;cursor:pointer">💾 Guardar</button>`;
+  document.getElementById('overlay').style.display='block';
+  document.getElementById('panel').style.display='flex';
+}
+
+function closePanel(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('panel').style.display='none';
+  panelData=null;
+}
+
+function toggleApprovePanel(id){
+  if(approved.has(id))approved.delete(id);else approved.add(id);
+  closePanel();renderCalendar();renderReview();
+}
+
+function saveEdit(){
+  if(!panelData)return;
+  calendar.days[panelData.di].stories[panelData.si].text=document.getElementById('editText').value;
+  toast('success','💾 Guardado');closePanel();renderCalendar();
+}
+
+initClients();
+</script>
+</body>
+</html>
