@@ -522,7 +522,7 @@ function openPanel(di,si){
   panelData={di,si};
   document.getElementById('panelTitle').textContent=`${calendar.days[di].day} · Story ${story.num}`;
   const t=ts(story.type);
-  const aiUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1,true);
+  const aiUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1);
   const panelImgContent=story._imgLoaded?`<img src="${aiUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:makePlaceholderHTML(story,calendar.client);
   document.getElementById('panelBody').innerHTML=`
     <div class="panel-img-wrap" id="panel-img-wrap">
@@ -643,10 +643,9 @@ async function generateAllImages(){
   toast('success',`✅ ${all.length} imágenes listas`);
 }
 
-function getImageUrl(prompt,seed=1,full=false){
+function getImageUrl(prompt,seed=1){
   const p=encodeURIComponent((prompt||'abstract colorful background').trim());
-  const w=full?1080:540,h=full?1920:960;
-  return `https://image.pollinations.ai/prompt/${p}?width=${w}&height=${h}&nologo=true&seed=${seed}&model=turbo`;
+  return `${PROXY_URL}/api/img?p=${p}&s=${seed}`;
 }
 
 function regenImage(di,si){
@@ -659,10 +658,24 @@ function regenImage(di,si){
   toast('info','🎨 Regenerando imagen...');
 }
 
-function regenImagePanel(){
+async function regenImagePanel(){
   if(!panelData)return;
-  regenImage(panelData.di,panelData.si);
-  openPanel(panelData.di,panelData.si);
+  const {di,si}=panelData;
+  const story=calendar.days[di].stories[si];
+  story._seed=Date.now();
+  story._imgLoaded=false;
+  saveState();
+  const wrap=document.getElementById('panel-img-wrap');
+  if(wrap)wrap.innerHTML=`<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><div style="width:28px;height:28px;border:3px solid rgba(255,255,255,0.15);border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite"></div><div style="font-size:11px;color:#6B6B80">Generando imagen IA...</div></div>`;
+  toast('info','🎨 Generando imagen IA...');
+  const url=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+  await new Promise(resolve=>{
+    const img=new Image();
+    const timer=setTimeout(()=>{img.src='';if(wrap)wrap.innerHTML=makePlaceholderHTML(story,calendar.client);toast('error','⏱ Tiempo agotado');resolve();},25000);
+    img.onload=()=>{clearTimeout(timer);story._imgLoaded=true;saveState();if(wrap)wrap.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;display:block">`;const cardWrap=document.getElementById('iw-'+di+'-'+story.num);if(cardWrap)cardWrap.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;display:block">`;toast('success','✅ Imagen lista');resolve();};
+    img.onerror=()=>{clearTimeout(timer);if(wrap)wrap.innerHTML=makePlaceholderHTML(story,calendar.client);toast('error','❌ Error generando imagen');resolve();};
+    img.src=url;
+  });
 }
 
 async function downloadImg(di,si){
@@ -696,7 +709,7 @@ function openImg(url){
 function openImgPanel(di,si){
   const story=calendar.days[di].stories[si];
   if(story._imgLoaded){
-    openImg(getImageUrl(story.image_prompt||story.visual,story._seed||1,true));
+    openImg(getImageUrl(story.image_prompt||story.visual,story._seed||1));
   }else{
     toast('info','Genera la imagen IA primero');
   }
