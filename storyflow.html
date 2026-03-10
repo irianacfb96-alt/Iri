@@ -350,6 +350,7 @@ function renderCalendar(){
       <div class="label" style="margin:0">${calendar.client.emoji} ${calendar.client.name} · Próxima semana</div>
       <div style="display:flex;gap:8px">
         <button class="btn-sm btn-outline" onclick="approveAll()">✓ Aprobar todo</button>
+        <button class="btn-sm btn-purple" id="btnGenImgs" onclick="generateAllImages()">🎨 Generar imágenes</button>
         <button class="btn-sm btn-purple" onclick="goToPage('review')">👁 Revisar ${approved.size>0?`(${approved.size}/${total})`:''}</button>
       </div>
     </div>
@@ -363,16 +364,21 @@ function renderCalendar(){
           </div>
           <div class="day-stories">
             ${day.stories.map((s,si)=>{
-              const id=`${di}-${s.num}`,t=ts(s.type),imgUrl=getImageUrl(s.image_prompt||s.visual,s._seed||1);
+              const id=`${di}-${s.num}`,t=ts(s.type),hasImg=!!s._imgLoaded;
               return `<div class="story-card ${approved.has(id)?'approved':''}" id="sc-${id}" onclick="openPanel(${di},${si})">
                 <span class="story-check">✓</span>
-                <div class="story-img-wrap" id="iw-${id}">
-                  <div class="img-placeholder img-loading" id="il-${id}"></div>
-                  <img data-src="${imgUrl}" alt="" style="opacity:0" class="lazy-img" onload="this.style.opacity=1;document.getElementById('il-${id}').style.display='none'" onerror="document.getElementById('il-${id}').innerHTML='🖼️';document.getElementById('il-${id}').style.opacity=0.3">
+                <div class="story-img-wrap" id="iw-${id}" style="cursor:pointer">
+                  ${hasImg
+                    ? `<img src="${getImageUrl(s.image_prompt||s.visual,s._seed||1)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`
+                    : `<div id="il-${id}" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+                        <span style="font-size:20px;opacity:0.3">🖼️</span>
+                        <button class="img-btn" style="font-size:8px;padding:2px 6px" onclick="event.stopPropagation();loadOneImage(${di},${si})">✨ Generar</button>
+                       </div>`
+                  }
                 </div>
                 <div class="story-img-actions">
-                  <button class="img-btn" onclick="event.stopPropagation();regenImage(${di},${si})">↺ Regen</button>
-                  <button class="img-btn" onclick="event.stopPropagation();downloadImg(${di},${si})">⬇ DL</button>
+                  <button class="img-btn" onclick="event.stopPropagation();regenImage(${di},${si})">↺</button>
+                  <button class="img-btn" onclick="event.stopPropagation();downloadImg(${di},${si})">⬇</button>
                 </div>
                 <div class="story-num">S${s.num} · ${s.role}</div>
                 <span class="story-tag" style="background:${t.bg};color:${t.color}">${s.type}</span>
@@ -382,7 +388,6 @@ function renderCalendar(){
           </div>
         </div>`).join('')}
     </div>`;
-  setTimeout(initLazyImages,50);
 }
 
 function approveAll(){
@@ -544,17 +549,44 @@ function saveEdit(){
   toast('success','💾 Guardado');closePanel();renderCalendar();
 }
 
-function initLazyImages(){
-  const obs=new IntersectionObserver((entries)=>{
-    entries.forEach(e=>{
-      if(e.isIntersecting){
-        const img=e.target;
-        if(img.dataset.src){img.src=img.dataset.src;delete img.dataset.src;}
-        obs.unobserve(img);
-      }
-    });
-  },{rootMargin:'100px'});
-  document.querySelectorAll('img.lazy-img').forEach(img=>obs.observe(img));
+let imgQueue=[];
+
+async function loadOneImage(di,si){
+  const story=calendar.days[di].stories[si];
+  const id=`${di}-${story.num}`;
+  const wrap=document.getElementById('iw-'+id);
+  if(!wrap)return;
+  wrap.innerHTML=`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div style="width:18px;height:18px;border:2px solid #2A2A3A;border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite"></div></div>`;
+  const url=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      story._imgLoaded=true;
+      wrap.innerHTML=`<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`;
+      resolve();
+    };
+    img.onerror=()=>{
+      wrap.innerHTML=`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:0.3">🖼️</div>`;
+      resolve();
+    };
+    img.src=url;
+  });
+}
+
+async function generateAllImages(){
+  if(!calendar)return;
+  const btn=document.getElementById('btnGenImgs');
+  btn.disabled=true;
+  const all=[];
+  calendar.days.forEach((d,di)=>d.stories.forEach((s,si)=>all.push({di,si})));
+  for(let i=0;i<all.length;i++){
+    const {di,si}=all[i];
+    btn.textContent=`🎨 ${i+1}/${all.length}...`;
+    await loadOneImage(di,si);
+  }
+  btn.disabled=false;
+  btn.textContent='🎨 Generar imágenes';
+  toast('success',`✅ ${all.length} imágenes generadas`);
 }
 
 function getImageUrl(prompt,seed=1,full=false){
