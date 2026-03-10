@@ -721,23 +721,30 @@ async function generateAllImages(){
 }
 
 const CLIENT_IMG_KEYWORDS={
-  pizza:'italian pizza restaurant food delicious',
-  doctor:'neurosurgeon medical brain surgery professional',
-  globos:'colorful balloons party decoration celebration',
-  imacorp:'corporate uniforms business branding professional',
-  crediya:'motorcycle action sport financing',
-  casa:'pizza chef kitchen tools professional',
-  alberto:'business leader entrepreneur CEO suit'
+  pizza:'pizza restaurant food italian',
+  doctor:'doctor medical hospital professional',
+  globos:'balloon decoration party colorful',
+  imacorp:'corporate,uniform,shirt,company',
+  crediya:'motorcycle,motorbike,road',
+  casa:'pizza,chef,kitchen,cooking',
+  alberto:'business,entrepreneur,suit,office'
 };
 
 function getImageUrl(prompt,seed=1){
+  const clientId=calendar?.client?.id||'';
   let p=prompt;
-  // Si no hay prompt en inglés (calendario viejo o genérico), usar keywords del cliente
-  if(!p||p.length<8||/imagen|foto|video|meme|slider|encuesta|pregunta|divertida|texto/i.test(p)){
-    const clientId=calendar?.client?.id||'';
-    p=CLIENT_IMG_KEYWORDS[clientId]||'professional photography colorful';
+  // Si el prompt es genérico/vacío/en español, usar keywords del cliente
+  if(!p||p.length<8||/imagen|foto|video|meme|slider|encuesta|pregunta|divertida|texto|uniforme|rotul|empresa|servicio|product/i.test(p)){
+    p=CLIENT_IMG_KEYWORDS[clientId]||'professional business';
   }
-  return `${PROXY_URL}/api/img?p=${encodeURIComponent(p.trim())}&s=${seed}`;
+  // loremflickr funciona mejor con keywords cortas en inglés separadas por coma
+  // Si viene texto largo en español, forzar keywords del cliente
+  if(/[áéíóúñ¿¡]/i.test(p)||p.split(' ').length>5){
+    p=CLIENT_IMG_KEYWORDS[clientId]||'professional business';
+  }
+  // Máximo 3 palabras separadas por coma (formato loremflickr)
+  const clean=p.replace(/\s+/g,',').split(',').filter(Boolean).slice(0,3).join(',');
+  return `${PROXY_URL}/api/img?p=${encodeURIComponent(clean)}&s=${seed}`;
 }
 
 function regenImage(di,si){
