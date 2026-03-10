@@ -26,23 +26,39 @@ app.post('/api/groq', async (req, res) => {
   }
 });
 
-// Genera imagen via Pollinations (server-side, más confiable)
+// Genera imagen: busca en Lexica.art (AI, gratis, instantáneo), fallback Picsum
 app.get('/api/img', async (req, res) => {
   const prompt = req.query.p || 'abstract colorful background';
-  const seed = req.query.s || '1';
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=540&height=960&nologo=true&seed=${seed}&model=turbo&nofeed=true`;
+  const seed = parseInt(req.query.s || '1');
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!response.ok) throw new Error('upstream ' + response.status);
-    const buffer = await response.arrayBuffer();
+    // Lexica.art: millones de imágenes AI pre-generadas por tema
+    const search = await fetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(prompt)}`, {
+      headers: { 'User-Agent': 'StoryFlow/1.0' }
+    });
+    const data = await search.json();
+    if (data.images && data.images.length > 0) {
+      const pick = data.images[seed % data.images.length];
+      const imgUrl = pick.src || pick.srcSmall;
+      const imgRes = await fetch(imgUrl);
+      if (imgRes.ok) {
+        const buffer = await imgRes.arrayBuffer();
+        res.set('Content-Type', imgRes.headers.get('content-type') || 'image/jpeg');
+        res.set('Cache-Control', 'public, max-age=86400');
+        return res.send(Buffer.from(buffer));
+      }
+    }
+  } catch (e) {
+    console.error('Lexica error:', e.message);
+  }
+  // Fallback: foto aleatoria de Picsum (instantánea)
+  try {
+    const fallback = await fetch(`https://picsum.photos/540/960?random=${seed}`);
+    const buffer = await fallback.arrayBuffer();
     res.set('Content-Type', 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=86400');
-    res.send(Buffer.from(buffer));
-  } catch (err) {
-    res.status(504).json({ error: err.message });
+    res.set('Cache-Control', 'public, max-age=3600');
+    return res.send(Buffer.from(buffer));
+  } catch (e) {
+    res.status(500).json({ error: 'All image sources failed' });
   }
 });
 
