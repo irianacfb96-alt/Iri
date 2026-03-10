@@ -429,6 +429,9 @@ Responde SOLO JSON válido sin texto extra ni backticks:
     });
     const data=await res.json();
     let raw=(data.choices?.[0]?.message?.content||'').replace(/```json|```/g,'').trim();    const parsed=JSON.parse(raw);
+    // Asignar seeds únicos a cada historia para que carguen fotos diferentes
+    const base=Date.now();
+    parsed.days.forEach((day,di)=>day.stories.forEach((s,si)=>{ s._seed=base+di*100+si+1; }));
     clearInterval(progressInterval);setProgress(100);
     setTimeout(()=>setProgress(0),600);
     calendar={...parsed,client:c,dates};
