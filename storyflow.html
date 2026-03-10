@@ -98,6 +98,18 @@ body{font-family:system-ui,sans-serif;background:#0A0A0F;color:#F0F0F5;min-heigh
 .toast{background:#1C1C27;border-radius:10px;padding:10px 14px;font-size:12px;display:flex;align-items:center;gap:8px;animation:slideIn 0.3s ease;max-width:280px;color:#F0F0F5}
 .page{display:none;animation:fadeUp 0.3s ease}
 .page.active{display:block}
+.story-img-wrap{width:100%;height:80px;overflow:hidden;border-radius:5px;margin-bottom:5px;background:#0A0A0F;position:relative;flex-shrink:0}
+.story-img-wrap img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity 0.3s}
+.img-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;opacity:0.3}
+.story-img-actions{display:flex;gap:3px;margin-bottom:4px}
+.img-btn{flex:1;padding:3px 0;border-radius:5px;border:1px solid #2A2A3A;background:transparent;color:#6B6B80;font-size:9px;cursor:pointer;font-weight:700;transition:all 0.15s}
+.img-btn:hover{border-color:#FF6B35;color:#FF6B35}
+.review-img{width:54px;height:96px;object-fit:cover;border-radius:6px;flex-shrink:0;background:#0A0A0F;border:1px solid #2A2A3A}
+.panel-img-wrap{width:100%;aspect-ratio:9/16;background:#0A0A0F;border-radius:10px;overflow:hidden;margin-bottom:12px;position:relative}
+.panel-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.panel-img-actions{display:flex;gap:7px;margin-bottom:12px}
+@keyframes imgSpin{to{transform:rotate(360deg)}}
+.img-loading::after{content:'';display:block;width:18px;height:18px;border:2px solid #2A2A3A;border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite}
 </style>
 </head>
 <body>
@@ -303,8 +315,9 @@ IDIOMA: Español venezolano/coloquial, cercano, natural
 ESTRUCTURA: S1:Gancho | S2:Desarrollo | S3:Producto | S4:Beneficio | S5:Interacción | S6:CTA
 TIPOS: foto, video, encuesta, pregunta, slider, meme, detrás de cámara
 Varía los tipos cada día. Usa encuestas y preguntas al menos 2 veces por semana.
+Para cada historia incluye image_prompt: descripción en INGLÉS para generar imagen IG (max 12 palabras, sin texto en la imagen, estilo fotorrealista, relacionado al negocio).
 Responde SOLO JSON válido sin texto extra ni backticks:
-{"days":[{"day":"Lunes","theme":"tema corto","stories":[{"num":1,"role":"Gancho","type":"video","text":"texto máx 15 palabras","visual":"qué mostrar","goal":"objetivo breve"}]}]}`;
+{"days":[{"day":"Lunes","theme":"tema corto","stories":[{"num":1,"role":"Gancho","type":"video","text":"texto máx 15 palabras","visual":"qué mostrar","goal":"objetivo breve","image_prompt":"photorealistic image description in english max 12 words"}]}]}`;
 
   try{
     const res=await fetch(PROXY_URL+"/api/groq",{
@@ -350,9 +363,17 @@ function renderCalendar(){
           </div>
           <div class="day-stories">
             ${day.stories.map((s,si)=>{
-              const id=`${di}-${s.num}`,t=ts(s.type);
+              const id=`${di}-${s.num}`,t=ts(s.type),imgUrl=getImageUrl(s.image_prompt||s.visual,s._seed||1);
               return `<div class="story-card ${approved.has(id)?'approved':''}" id="sc-${id}" onclick="openPanel(${di},${si})">
                 <span class="story-check">✓</span>
+                <div class="story-img-wrap" id="iw-${id}">
+                  <div class="img-placeholder img-loading" id="il-${id}"></div>
+                  <img src="${imgUrl}" alt="" style="opacity:0" onload="this.style.opacity=1;document.getElementById('il-${id}').style.display='none'" onerror="document.getElementById('il-${id}').innerHTML='🖼️';document.getElementById('il-${id}').style.opacity=0.3">
+                </div>
+                <div class="story-img-actions">
+                  <button class="img-btn" onclick="event.stopPropagation();regenImage(${di},${si})">↺ Regen</button>
+                  <button class="img-btn" onclick="event.stopPropagation();downloadImg(${di},${si})">⬇ DL</button>
+                </div>
                 <div class="story-num">S${s.num} · ${s.role}</div>
                 <span class="story-tag" style="background:${t.bg};color:${t.color}">${s.type}</span>
                 <div class="story-text">${s.text}</div>
@@ -395,14 +416,18 @@ function renderReview(){
       <div class="day-section">
         <div class="day-label">${day.day} · ${day.theme}</div>
         ${day.stories.map((story,si)=>{
-          const id=`${di}-${story.num}`,t=ts(story.type);
+          const id=`${di}-${story.num}`,t=ts(story.type),imgUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1);
           return `<div class="review-card ${approved.has(id)?'approved':''}" id="rc-${id}">
-            <span class="story-badge">S${story.num}</span>
+            <img class="review-img" src="${imgUrl}" alt="" onclick="openImg('${imgUrl.replace(/'/g,"\\'")}')" style="cursor:zoom-in" onerror="this.style.opacity=0.15">
             <div class="review-body">
-              <div class="review-meta">${story.role} · <span class="story-tag" style="background:${t.bg};color:${t.color}">${story.type}</span></div>
+              <div class="review-meta"><span class="story-badge">S${story.num}</span> ${story.role} · <span class="story-tag" style="background:${t.bg};color:${t.color}">${story.type}</span></div>
               <div class="review-text">${story.text}</div>
               <div class="review-sub">📸 ${story.visual}</div>
               <div class="review-sub">🎯 ${story.goal}</div>
+              <div style="display:flex;gap:5px;margin-top:6px">
+                <button class="img-btn" style="flex:none;padding:3px 8px" onclick="regenImage(${di},${si})">↺ Nueva imagen</button>
+                <button class="img-btn" style="flex:none;padding:3px 8px" onclick="downloadImg(${di},${si})">⬇ Descargar</button>
+              </div>
             </div>
             <button class="btn-approve" onclick="toggleApprove('${id}')" style="background:${approved.has(id)?'transparent':'#06D6A0'};color:${approved.has(id)?'#F0F0F5':'#000'};border:${approved.has(id)?'1px solid #2A2A3A':'none'}">${approved.has(id)?'↩':'✓'}</button>
           </div>`;
@@ -468,7 +493,17 @@ function openPanel(di,si){
   panelData={di,si};
   document.getElementById('panelTitle').textContent=`${calendar.days[di].day} · Story ${story.num}`;
   const t=ts(story.type);
+  const imgUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1);
   document.getElementById('panelBody').innerHTML=`
+    <div class="panel-img-wrap" id="panel-img-wrap">
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center" id="panel-img-loading"><div class="img-loading" style="width:24px;height:24px;border:3px solid #2A2A3A;border-top-color:#FF6B35;border-radius:50%;animation:imgSpin 0.8s linear infinite"></div></div>
+      <img src="${imgUrl}" alt="" onload="document.getElementById('panel-img-loading').style.display='none'" onerror="document.getElementById('panel-img-loading').innerHTML='🖼️'">
+    </div>
+    <div class="panel-img-actions">
+      <button class="btn-sm btn-outline" style="flex:1" onclick="regenImagePanel()">↺ Nueva imagen</button>
+      <button class="btn-sm btn-orange" style="flex:1" onclick="downloadImg(${di},${si})">⬇ Descargar</button>
+      <button class="btn-sm btn-outline" style="flex:1" onclick="openImg('${imgUrl.replace(/'/g,"\\'")}')" >🔍 Ver</button>
+    </div>
     <div class="panel-section">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px">
         <span class="story-badge">Story ${story.num}</span>
@@ -506,6 +541,53 @@ function saveEdit(){
   if(!panelData)return;
   calendar.days[panelData.di].stories[panelData.si].text=document.getElementById('editText').value;
   toast('success','💾 Guardado');closePanel();renderCalendar();
+}
+
+function getImageUrl(prompt,seed=1){
+  const p=encodeURIComponent((prompt||'abstract colorful background').trim());
+  return `https://image.pollinations.ai/prompt/${p}?width=1080&height=1920&nologo=true&seed=${seed}&model=flux`;
+}
+
+function regenImage(di,si){
+  const story=calendar.days[di].stories[si];
+  story._seed=Date.now();
+  renderCalendar();
+  if(document.getElementById('page-review').classList.contains('active'))renderReview();
+  toast('info','🎨 Regenerando imagen...');
+}
+
+function regenImagePanel(){
+  if(!panelData)return;
+  regenImage(panelData.di,panelData.si);
+  openPanel(panelData.di,panelData.si);
+}
+
+async function downloadImg(di,si){
+  const story=calendar.days[di].stories[si];
+  const url=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+  const fname=`${calendar.client.id}_s${story.num}_dia${di+1}.jpg`;
+  toast('info','⬇ Descargando...');
+  try{
+    const res=await fetch(PROXY_URL+'/api/image?url='+encodeURIComponent(url));
+    if(!res.ok)throw new Error();
+    const blob=await res.blob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=fname;a.click();
+    toast('success','✅ Imagen descargada');
+  }catch{
+    window.open(url,'_blank');
+    toast('info','🔗 Imagen abierta en nueva pestaña');
+  }
+}
+
+function openImg(url){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  overlay.onclick=()=>overlay.remove();
+  const img=document.createElement('img');
+  img.src=url;img.style.cssText='max-height:90vh;max-width:90vw;border-radius:12px;object-fit:contain';
+  overlay.appendChild(img);document.body.appendChild(overlay);
 }
 
 initClients();
