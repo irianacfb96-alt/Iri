@@ -365,14 +365,14 @@ function renderCalendar(){
           <div class="day-stories">
             ${day.stories.map((s,si)=>{
               const id=`${di}-${s.num}`,t=ts(s.type);
-              const thumb=s._imgLoaded?`<img src="${getImageUrl(s.image_prompt||s.visual,s._seed||1)}" style="width:100%;height:100%;object-fit:cover;display:block">`:`<img src="${makePlaceholderSVG(s,calendar.client)}" style="width:100%;height:100%;object-fit:cover;display:block">`;
+              const thumb=s._imgLoaded?`<img src="${getImageUrl(s.image_prompt||s.visual,s._seed||1)}" style="width:100%;height:100%;object-fit:cover;display:block">`:makePlaceholderHTML(s,calendar.client);
               return `<div class="story-card ${approved.has(id)?'approved':''}" id="sc-${id}" onclick="openPanel(${di},${si})">
                 <span class="story-check">✓</span>
                 <div class="story-img-wrap" id="iw-${id}">
                   ${thumb}
                 </div>
                 <div class="story-img-actions">
-                  <button class="img-btn" onclick="event.stopPropagation();regenImage(${di},${si})">↺</button>
+                  ${needsImage(s.type)?`<button class="img-btn" onclick="event.stopPropagation();loadOneImage(${di},${si})">🎨 IA</button>`:'<span class="img-btn" style="opacity:0.3;cursor:default">🎬 Video</span>'}
                   <button class="img-btn" onclick="event.stopPropagation();downloadImg(${di},${si})">⬇</button>
                 </div>
                 <div class="story-num">S${s.num} · ${s.role}</div>
@@ -417,9 +417,15 @@ function renderReview(){
       <div class="day-section">
         <div class="day-label">${day.day} · ${day.theme}</div>
         ${day.stories.map((story,si)=>{
-          const id=`${di}-${story.num}`,t=ts(story.type),imgUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1);
+          const id=`${di}-${story.num}`,t=ts(story.type);
+          const [rc1,rc2]=(calendar.client.colors)||['#1C1C27','#2A2A3A'];
+          const revThumb=story._imgLoaded?`<img class="review-img" src="${getImageUrl(story.image_prompt||story.visual,story._seed||1)}" style="cursor:zoom-in;object-fit:cover" onclick="openImg('${getImageUrl(story.image_prompt||story.visual,story._seed||1).replace(/'/g,"\\'")}')">`:
+            `<div class="review-img" style="background:linear-gradient(135deg,${rc1},${rc2});display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer" onclick="loadOneImageAndRefresh(${di},${si})">
+              <span style="font-size:18px">${calendar.client.emoji}</span>
+              <span style="font-size:7px;color:rgba(255,255,255,0.6);font-weight:700">TAP IA</span>
+             </div>`;
           return `<div class="review-card ${approved.has(id)?'approved':''}" id="rc-${id}">
-            <img class="review-img" src="${imgUrl}" alt="" onclick="openImg('${imgUrl.replace(/'/g,"\\'")}')" style="cursor:zoom-in" onerror="this.style.opacity=0.15">
+            ${revThumb}
             <div class="review-body">
               <div class="review-meta"><span class="story-badge">S${story.num}</span> ${story.role} · <span class="story-tag" style="background:${t.bg};color:${t.color}">${story.type}</span></div>
               <div class="review-text">${story.text}</div>
@@ -495,16 +501,15 @@ function openPanel(di,si){
   document.getElementById('panelTitle').textContent=`${calendar.days[di].day} · Story ${story.num}`;
   const t=ts(story.type);
   const aiUrl=getImageUrl(story.image_prompt||story.visual,story._seed||1,true);
-  const phUrl=makePlaceholderSVG(story,calendar.client);
-  const panelImgSrc=story._imgLoaded?aiUrl:phUrl;
+  const panelImgContent=story._imgLoaded?`<img src="${aiUrl}" style="width:100%;height:100%;object-fit:cover;display:block">`:makePlaceholderHTML(story,calendar.client);
   document.getElementById('panelBody').innerHTML=`
     <div class="panel-img-wrap" id="panel-img-wrap">
-      <img id="panel-main-img" src="${panelImgSrc}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+      ${panelImgContent}
     </div>
     <div class="panel-img-actions">
       <button class="btn-sm btn-outline" style="flex:1" onclick="regenImagePanel()">🎨 IA</button>
       <button class="btn-sm btn-orange" style="flex:1" onclick="downloadImg(${di},${si})">⬇ Descargar</button>
-      <button class="btn-sm btn-outline" style="flex:1" onclick="openImg('${phUrl.replace(/'/g,"\\'")}')" >🔍 Ver</button>
+      <button class="btn-sm btn-outline" style="flex:1" onclick="openImgPanel(${di},${si})">🔍 Ver</button>
     </div>
     <div class="panel-section">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:11px">
@@ -545,28 +550,16 @@ function saveEdit(){
   toast('success','💾 Guardado');closePanel();renderCalendar();
 }
 
-function makePlaceholderSVG(story, client){
+function makePlaceholderHTML(story, client){
   const [c1,c2]=(client&&client.colors)||['#1C1C27','#2A2A3A'];
   const emoji=(client&&client.emoji)||'📸';
   const type=(story.type||'foto').toUpperCase();
-  const role=(story.role||'').substring(0,18);
-  const txt=(story.text||'').substring(0,55).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // wrap text at ~22 chars
-  const words=txt.split(' ');let lines=[],cur='';
-  words.forEach(w=>{if((cur+' '+w).trim().length>22){lines.push(cur.trim());cur=w;}else cur=(cur+' '+w).trim();});
-  if(cur)lines.push(cur);
-  const linesSVG=lines.slice(0,3).map((l,i)=>`<text x="270" y="${580+i*70}" font-family="Arial,sans-serif" font-size="52" fill="white" text-anchor="middle" opacity="0.9">${l}</text>`).join('');
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 960">
-    <defs><linearGradient id="g" x1="0%" y1="0%" x2="60%" y2="100%"><stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient></defs>
-    <rect width="540" height="960" fill="url(#g)"/>
-    <rect x="0" y="0" width="540" height="960" fill="black" opacity="0.25"/>
-    <text x="270" y="260" font-family="Arial,sans-serif" font-size="130" text-anchor="middle">${emoji}</text>
-    <text x="270" y="370" font-family="Arial,sans-serif" font-size="48" fill="white" text-anchor="middle" opacity="0.6" font-weight="bold">${type}</text>
-    <text x="270" y="440" font-family="Arial,sans-serif" font-size="38" fill="white" text-anchor="middle" opacity="0.5">${role}</text>
-    <line x1="80" y1="490" x2="460" y2="490" stroke="white" stroke-width="1" opacity="0.2"/>
-    ${linesSVG}
-  </svg>`;
-  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  const txt=(story.text||'').substring(0,60);
+  return `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${c1},${c2});display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;text-align:center;gap:4px">
+    <div style="font-size:28px;line-height:1">${emoji}</div>
+    <div style="font-size:8px;font-weight:800;color:rgba(255,255,255,0.65);text-transform:uppercase;letter-spacing:1.5px">${type}</div>
+    <div style="font-size:8px;color:rgba(255,255,255,0.8);line-height:1.4;margin-top:2px">${txt}</div>
+  </div>`;
 }
 
 async function loadOneImage(di,si){
@@ -580,8 +573,8 @@ async function loadOneImage(di,si){
     const img=new Image();
     const timer=setTimeout(()=>{
       img.src='';
-      wrap.innerHTML=`<img src="${makePlaceholderSVG(story,calendar.client)}" style="width:100%;height:100%;object-fit:cover;display:block">`;
-      toast('error','⏱ Tiempo agotado — muestra placeholder');
+      wrap.innerHTML=makePlaceholderHTML(story,calendar.client);
+      toast('info','⏱ Imagen IA tardó mucho, intenta de nuevo');
       resolve();
     },18000);
     img.onload=()=>{
@@ -592,19 +585,30 @@ async function loadOneImage(di,si){
     };
     img.onerror=()=>{
       clearTimeout(timer);
-      wrap.innerHTML=`<img src="${makePlaceholderSVG(story,calendar.client)}" style="width:100%;height:100%;object-fit:cover;display:block">`;
+      wrap.innerHTML=makePlaceholderHTML(story,calendar.client);
       resolve();
     };
     img.src=url;
   });
 }
 
+async function loadOneImageAndRefresh(di,si){
+  await loadOneImage(di,si);
+  renderReview();
+}
+
+const IMG_TYPES=['foto','foto de producto','meme','slider','detrás de cámara','cta'];
+function needsImage(type){return IMG_TYPES.includes((type||'').toLowerCase());}
+
 async function generateAllImages(){
   if(!calendar)return;
   const btn=document.getElementById('btnGenImgs');
   btn.disabled=true;
   const all=[];
-  calendar.days.forEach((d,di)=>d.stories.forEach((s,si)=>all.push({di,si})));
+  calendar.days.forEach((d,di)=>d.stories.forEach((s,si)=>{
+    if(needsImage(s.type))all.push({di,si});
+  }));
+  if(all.length===0){toast('info','No hay fotos que generar');btn.disabled=false;return;}
   for(let i=0;i<all.length;i++){
     const {di,si}=all[i];
     btn.textContent=`🎨 ${i+1}/${all.length}...`;
@@ -612,6 +616,7 @@ async function generateAllImages(){
   }
   btn.disabled=false;
   btn.textContent='🎨 Generar imágenes IA';
+  renderCalendar();
   toast('success',`✅ ${all.length} imágenes listas`);
 }
 
@@ -661,6 +666,15 @@ function openImg(url){
   const img=document.createElement('img');
   img.src=url;img.style.cssText='max-height:90vh;max-width:90vw;border-radius:12px;object-fit:contain';
   overlay.appendChild(img);document.body.appendChild(overlay);
+}
+
+function openImgPanel(di,si){
+  const story=calendar.days[di].stories[si];
+  if(story._imgLoaded){
+    openImg(getImageUrl(story.image_prompt||story.visual,story._seed||1,true));
+  }else{
+    toast('info','Genera la imagen IA primero');
+  }
 }
 
 initClients();
