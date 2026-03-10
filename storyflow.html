@@ -195,7 +195,7 @@ body{font-family:system-ui,sans-serif;background:#0A0A0F;color:#F0F0F5;min-heigh
 <div id="toasts"></div>
 
 <script>
-const GROQ_API_KEY = "TU_API_KEY_DE_GROQ_AQUI";
+const PROXY_URL = "https://iri-proxy.up.railway.app";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 const CLIENTS = [
@@ -307,9 +307,9 @@ Responde SOLO JSON válido sin texto extra ni backticks:
 {"days":[{"day":"Lunes","theme":"tema corto","stories":[{"num":1,"role":"Gancho","type":"video","text":"texto máx 15 palabras","visual":"qué mostrar","goal":"objetivo breve"}]}]}`;
 
   try{
-    const res=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+    const res=await fetch(PROXY_URL+"/api/groq",{
       method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+GROQ_API_KEY},
+      headers:{"Content-Type":"application/json"},
       body:JSON.stringify({model:GROQ_MODEL,max_tokens:4000,messages:[{role:"user",content:prompt}]})
     });
     const data=await res.json();
