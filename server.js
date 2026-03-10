@@ -26,6 +26,27 @@ app.post('/api/groq', async (req, res) => {
   }
 });
 
+// Genera imagen via Pollinations (server-side, más confiable)
+app.get('/api/img', async (req, res) => {
+  const prompt = req.query.p || 'abstract colorful background';
+  const seed = req.query.s || '1';
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=540&height=960&nologo=true&seed=${seed}&model=turbo&nofeed=true`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!response.ok) throw new Error('upstream ' + response.status);
+    const buffer = await response.arrayBuffer();
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    res.status(504).json({ error: err.message });
+  }
+});
+
+// Descarga imagen por URL
 app.get('/api/image', async (req, res) => {
   try {
     const url = req.query.url;
